@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.smartinterview.mapper.ResumeAnalysisMapper">
+
+    <resultMap id="BaseResultMap" type="com.smartinterview.entity.ResumeAnalysis">
+            <id property="id" column="id" />
+            <result property="userId" column="user_id" />
+            <result property="fileUrl" column="file_url" />
+            <result property="jobIntention" column="job_intention" />
+            <result property="originalText" column="original_text" />
+            <result property="status" column="status" />
+            <result property="score" column="score" />
+            <result property="summary" column="summary" />
+            <result property="suggestion" column="suggestion" />
+            <result property="createTime" column="create_time" />
+            <result property="updateTime" column="update_time" />
+            <result property="isDeleted" column="is_deleted" />
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id,user_id,file_url,job_intention,original_text,status,
+        score,summary,suggestion,create_time,update_time,
+        is_deleted
+    </sql>
+</mapper>
