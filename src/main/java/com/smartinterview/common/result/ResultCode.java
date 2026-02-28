@@ -1,4 +1,4 @@
-package com.smartinterview.common;
+package com.smartinterview.common.result;
 
 import lombok.Getter;
 
@@ -19,7 +19,7 @@ public enum ResultCode {
     SECKILL_ENDED(604, "活动已结束");
     private final int code;
     private final String msg;
-     ResultCode(int code,String msg){
+     ResultCode(int code, String msg){
         this.code=code;
         this.msg=msg;
     }

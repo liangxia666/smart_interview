@@ -1,5 +1,7 @@
-package com.smartinterview.common;
+package com.smartinterview.common.result;
 
+import com.smartinterview.common.result.ResultCode;
+import com.smartinterview.common.exception.BaseException;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
@@ -41,5 +43,8 @@ public class Result<T> implements Serializable {
         result.setCode(code);
         result.setMsg(msg);
         return result;
+    }
+    public static <T> Result<T> error(BaseException ex){
+        return error(ex.getCode(),ex.getMessage());
     }
 }

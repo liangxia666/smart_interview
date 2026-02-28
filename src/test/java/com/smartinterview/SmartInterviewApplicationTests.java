@@ -1,4 +1,4 @@
-package com.atguigu.smart_interview;
+package com.smartinterview;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
