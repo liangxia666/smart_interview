@@ -1,6 +1,14 @@
 server:
   port: 8080
+
 spring:
+  # 加入以下关于 web 和 mvc 的配置
+  mvc:
+    pathmatch:
+      matching-strategy: ant_path_matcher # 切换回 Ant 风格路径匹配，解决报错的关键
+  web:
+    resources:
+      add-mappings: true # 确保开启静态资源映射
   datasource:
     type: com.alibaba.druid.pool.DruidDataSource
     username: root
@@ -15,13 +23,37 @@ spring:
    redis:
     host: localhost
     port: 6379
-    username: root
     password: 123456
+    database: 0
 mybatis-plus:
     mapper-locations: classpath:mapper/*.xml
     type-aliases-package: com.smartinterview.entity
     configuration:
       map-underscore-to-camel-case: true
+smartinterview:
+  jwt:
+    user-secretkey: itcast_smartinterview_666_888_longge666
+    user-token-name: token
+    user-ttl: 72000
 
 
+springdoc:
+  api-docs:
+    enabled: true
+    path: /v3/api-docs     #文档存放的基础路径
+  swagger-ui:
+    path: /swagger-ui.html  #接口调试界面
+    tags-sorter: order      #模块排序方式
+    operations-sorter: method  #方法排序方式（get  ）
+  group-configs:
+    - group: '智面Rush-全部接口'
+      paths-to-match: '/**'
+      packages-to-scan: com.smartinterview.controller
 
+knife4j:
+  enable: true
+  setting:
+    language: zh-CN
+    enable-swagger-models: true
+    enable-document-manage: true
+    enable-footer: false

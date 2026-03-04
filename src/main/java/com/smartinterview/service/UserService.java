@@ -1,5 +1,7 @@
 package com.smartinterview.service;
 
+import com.smartinterview.common.result.Result;
+import com.smartinterview.dto.LoginDTO;
 import com.smartinterview.entity.User;
 import com.baomidou.mybatisplus.extension.service.IService;
 
@@ -10,4 +12,7 @@ import com.baomidou.mybatisplus.extension.service.IService;
 */
 public interface UserService extends IService<User> {
 
+    Result sendMessage(String phone);
+
+    Result login(LoginDTO loginDTO);
 }
