@@ -3,6 +3,8 @@ package com.smartinterview.service.impl;
 import cn.hutool.core.util.RandomUtil;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.smartinterview.common.constants.RedisConstants;
+import com.smartinterview.common.exception.CodeException;
+import com.smartinterview.common.exception.PhoneException;
 import com.smartinterview.common.result.Result;
 import com.smartinterview.common.result.ResultCode;
 import com.smartinterview.common.util.JwtProperties;
@@ -39,15 +41,29 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
     private JwtProperties jwtProperties;
     @Autowired
     private UserMapper userMapper;
+
+    /**
+     * 发送验证码
+     * @param phone
+     * @return
+     */
     @Override
     public Result sendMessage(String phone) {
 
         //无效返回true
         if(RegexUtils.isPhoneInvalid(phone)){
-            return Result.error("手机号格式错误");
+            throw new PhoneException("手机号格式错误");
         }
         String s = RandomUtil.randomNumbers(6);
         String codeKey= RedisConstants.LOGIN_CODE_KEY+phone;
+        String codeRate=RedisConstants.CODE_RATE_KEY+phone;
+        Long count = redisTemplate.opsForValue().increment(codeRate, 1);
+        if(count==1){
+            redisTemplate.expire(codeRate,60,TimeUnit.SECONDS);
+        }
+        if(count>3){
+            return Result.error("请稍后重试");
+        }
         redisTemplate.opsForValue().set(codeKey,s,RedisConstants.LOGIN_CODE_TTL, TimeUnit.MINUTES);
         log.info("发送验证码成功：{}",s);
         return Result.success();
@@ -57,12 +73,12 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
     public Result login(LoginDTO loginDTO) {
         String phone=loginDTO.getPhone();
         if(RegexUtils.isPhoneInvalid(phone)){
-            return Result.error("手机号格式错误");
+          throw new PhoneException("手机号格式错误");
         }
         Object o= redisTemplate.opsForValue().get(RedisConstants.LOGIN_CODE_KEY+phone);
         String code = String.valueOf(o);
         if(code==null||!code.equals(loginDTO.getCode())){
-            return Result.error(ResultCode.VALIDATE_ERROR);
+            throw new CodeException("验证码错误");
         }
         User user=query().eq("phone",loginDTO.getPhone()).one();
         if(user==null){
@@ -71,7 +87,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
         HashMap<String,Object> claim=new HashMap<>();
         claim.put(RedisConstants.CLAIM_USER_ID,user.getId());
         String token = JwtUtil.createJWT(jwtProperties.getUserSecretkey(), jwtProperties.getUserTtl(), claim);
-        redisTemplate.opsForValue().set("login_token:key",token);
+//        redisTemplate.opsForValue().set("login_token:key:"+user.getId(),token);
        // stringRedisTemplate默认传入String类型
         Map<String,Object> map= BeanUtil.beanToMap(user);
         //只存nickname id就行
@@ -86,9 +102,14 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
     public User createUser(String phone){
         User user=new User();
         user.setPhone(phone);
-        user.setNickname(RandomUtil.randomNumbers(10));
+        user.setNickname(RedisConstants.USER_NICK_NAME+RandomUtil.randomString(10));
         save(user);
         return user;
+    }
+    public Result logout(String token){
+        String userKey=RedisConstants.LOGIN_USER+token;
+        redisTemplate.delete(userKey);
+        return Result.success();
     }
 }
 

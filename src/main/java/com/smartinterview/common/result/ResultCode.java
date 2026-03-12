@@ -6,6 +6,7 @@ import lombok.Getter;
 public enum ResultCode {
     SUCCESS(200, "操作成功"),
     PARAM_ERROR(400, "参数错误"),
+    PHONE_ERROR(400,"手机号格式错误"),
     VALIDATE_ERROR(400, "验证码错误"),
     UNAUTHORIZED(401, "未登录或Token过期"),
     FORBIDDEN(403, "没有权限"),

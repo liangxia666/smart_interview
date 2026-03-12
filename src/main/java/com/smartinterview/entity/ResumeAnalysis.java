@@ -29,6 +29,8 @@ public class ResumeAnalysis {
 
     private String summary;
 
+    private String aiResult;
+
     private String suggestion;
 
     private Date createTime;

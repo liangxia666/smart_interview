@@ -2,6 +2,15 @@ server:
   port: 8080
 
 spring:
+  rabbitmq:
+    listener:
+      simple:
+        prefetch: 1 # 每次只能获取一条消息，处理完成才能获取下一个消息
+    host: 192.168.88.130
+    port: 5672
+    virtual-host: /smartinterview_host
+    username: root
+    password: 123456
   # 加入以下关于 web 和 mvc 的配置
   mvc:
     pathmatch:
@@ -34,7 +43,12 @@ smartinterview:
   jwt:
     user-secretkey: itcast_smartinterview_666_888_longge666
     user-token-name: token
-    user-ttl: 72000
+    user-ttl: 604800000
+  alioss:
+    endpoint: oss-cn-beijing.aliyuncs.com
+    access-key-id: LTAI5tBc2c5az9P41knAsBHW
+    access-key-secret: aor79iW1HyBWYiDd2CnvHA8V2DGMMh
+    bucket-name: smart-interv
 
 
 springdoc:
@@ -57,3 +71,6 @@ knife4j:
     enable-swagger-models: true
     enable-document-manage: true
     enable-footer: false
+aliyun:
+  dashscope:
+    api-key: sk-790988950ca84b829c733011c04434b5

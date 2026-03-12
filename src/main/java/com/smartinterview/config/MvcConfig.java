@@ -40,7 +40,8 @@ public class MvcConfig implements WebMvcConfigurer {
                         // 用户相关接口
                         "/user/login",
                         "/user/code",
-                        "/user/register"
+                        "/user/register",
+                        "/resume/**"
                 )
                 .excludePathPatterns(SWAGGER_EXCLUDE_PATHS) // 追加放行文档路径
                 .order(1);

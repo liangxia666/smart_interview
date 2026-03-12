@@ -6,7 +6,8 @@ import lombok.Getter;
 
 @Getter
 public class BaseException extends RuntimeException{
-    private final int code;
+    private  int code;
+    public BaseException(){}
 
     public BaseException(ResultCode resultCode){
         super(resultCode.getMsg());
