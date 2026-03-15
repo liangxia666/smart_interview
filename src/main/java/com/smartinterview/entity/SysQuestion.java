@@ -4,14 +4,23 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+
+import java.time.LocalDateTime;
 import java.util.Date;
+
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 /**
  * @TableName sys_question
  */
 @TableName(value ="sys_question")
 @Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class SysQuestion {
     private Long id;
 
@@ -23,9 +32,9 @@ public class SysQuestion {
 
     private Integer difficulty;
 
-    private Date createTime;
+    private LocalDateTime createTime;
 
-    private Date updateTime;
+    private LocalDateTime updateTime;
 
     private Long createUser;
 

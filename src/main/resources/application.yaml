@@ -11,13 +11,6 @@ spring:
     virtual-host: /smartinterview_host
     username: root
     password: 123456
-  # 加入以下关于 web 和 mvc 的配置
-  mvc:
-    pathmatch:
-      matching-strategy: ant_path_matcher # 切换回 Ant 风格路径匹配，解决报错的关键
-  web:
-    resources:
-      add-mappings: true # 确保开启静态资源映射
   datasource:
     type: com.alibaba.druid.pool.DruidDataSource
     username: root
@@ -46,8 +39,8 @@ smartinterview:
     user-ttl: 604800000
   alioss:
     endpoint: oss-cn-beijing.aliyuncs.com
-    access-key-id: LTAI5tBc2c5az9P41knAsBHW
-    access-key-secret: aor79iW1HyBWYiDd2CnvHA8V2DGMMh
+    access-key-id: LTAI5t6z9b44Vf82dkiD9Rgp
+    access-key-secret: OOn4DuSYo1jUypeJ1lxxzW9jHP9ZMb
     bucket-name: smart-interv
 
 

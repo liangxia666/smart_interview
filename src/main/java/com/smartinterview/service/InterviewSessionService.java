@@ -2,6 +2,7 @@ package com.smartinterview.service;
 
 import com.smartinterview.entity.InterviewSession;
 import com.baomidou.mybatisplus.extension.service.IService;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 /**
 * @author 32341
@@ -10,4 +11,5 @@ import com.baomidou.mybatisplus.extension.service.IService;
 */
 public interface InterviewSessionService extends IService<InterviewSession> {
 
+    SseEmitter chat(Long sessionId,String userMessage);
 }

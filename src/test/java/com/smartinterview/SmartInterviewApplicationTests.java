@@ -1,18 +1,30 @@
 package com.smartinterview;
 
+import cn.hutool.json.JSON;
+import cn.hutool.json.JSONUtil;
+import com.alibaba.dashscope.common.Message;
+import com.alibaba.dashscope.common.Role;
 import com.smartinterview.common.exception.BaseException;
+import com.smartinterview.entity.InterviewSession;
+import com.smartinterview.service.InterviewSessionService;
+import com.smartinterview.service.impl.InterviewSessionServiceImpl;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
 import org.junit.jupiter.api.Test;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
 
 import java.io.File;
 import java.io.IOException;
+import java.time.LocalDateTime;
 
 @SpringBootTest
 class SmartInterviewApplicationTests {
+    @Autowired
+    private StringRedisTemplate stringRedisTemplate;
 
     @Test
     void contextLoads() {
@@ -65,6 +77,36 @@ class SmartInterviewApplicationTests {
         String que="simple.queue";
         String msg="hello,amq";
         rabbitTemplate.convertAndSend(que,msg);
+    }
+    @Autowired
+    private InterviewSessionServiceImpl interviewSessionService;
+    @Test
+    public void testDTO(){
+        InterviewSession interviewSession=InterviewSession.builder().
+                userId(2L).
+                category("java后端开发").
+                difficulty("无").
+                createTime(LocalDateTime.now()).build();
+        interviewSessionService.save(interviewSession);
+    }
+    @Test
+    public void testRedis(){
+        Message userMsg=Message.builder()
+                .role(Role.USER.getValue())
+                .content("你好这是我的简历")
+                .build();
+          //对象与字符串之间的转变：hutool工具包/ FastJSON（阿里开源 JSON 库）
+//        // 1. 对象转 JSON 字符串
+//        String jsonStr = JSONUtil.toJsonStr(message);
+//
+//        // 2. JSON 字符串转对象
+//        Message msg = JSONUtil.toBean(jsonStr, Message.class);
+        String jsonStr=JSONUtil.toJsonStr(userMsg);
+
+        stringRedisTemplate.opsForList().rightPush("userMsg",jsonStr);
+        String userMsg1 = stringRedisTemplate.opsForList().index("userMsg", 0);
+        Message msg=JSONUtil.toBean(userMsg1,Message.class,false);
+        System.out.println("userMsg1:"+msg.getContent());
     }
 
 }

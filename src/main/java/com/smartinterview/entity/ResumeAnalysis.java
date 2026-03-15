@@ -4,14 +4,23 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+
+import java.time.LocalDateTime;
 import java.util.Date;
+
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 /**
  * @TableName resume_analysis
  */
 @TableName(value ="resume_analysis")
 @Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class ResumeAnalysis {
     private Long id;
 
@@ -25,7 +34,7 @@ public class ResumeAnalysis {
 
     private Integer status;
 
-    private Integer score;
+    private String  score;
 
     private String summary;
 
@@ -33,9 +42,9 @@ public class ResumeAnalysis {
 
     private String suggestion;
 
-    private Date createTime;
+    private LocalDateTime createTime;
 
-    private Date updateTime;
+    private LocalDateTime updateTime;
 
     private Integer isDeleted;
 }

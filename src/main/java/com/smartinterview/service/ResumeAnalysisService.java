@@ -16,4 +16,6 @@ public interface ResumeAnalysisService extends IService<ResumeAnalysis> {
     Result upload(MultipartFile file, String intention);
 
     SseEmitter streamAiAnalysis(Long resumeId);
+
+
 }
