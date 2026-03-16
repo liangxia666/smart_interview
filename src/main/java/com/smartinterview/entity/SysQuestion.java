@@ -26,6 +26,7 @@ public class SysQuestion {
 
     private String category;
 
+
     private String question;
 
     private String answer;
@@ -35,10 +36,6 @@ public class SysQuestion {
     private LocalDateTime createTime;
 
     private LocalDateTime updateTime;
-
-    private Long createUser;
-
-    private Long updateUser;
 
     private Integer isDeleted;
 }

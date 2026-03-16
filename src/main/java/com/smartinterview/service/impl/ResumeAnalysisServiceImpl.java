@@ -11,6 +11,7 @@ import com.smartinterview.common.util.AliOssUtil;
 import com.smartinterview.common.util.UserHolder;
 import com.smartinterview.config.RabbitConfig;
 import com.smartinterview.entity.ResumeAnalysis;
+import com.smartinterview.manager.PromptManager;
 import com.smartinterview.service.AiAnalysisService;
 import com.smartinterview.service.ResumeAnalysisService;
 import com.smartinterview.mapper.ResumeAnalysisMapper;

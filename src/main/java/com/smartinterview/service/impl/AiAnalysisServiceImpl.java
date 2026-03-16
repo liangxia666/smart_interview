@@ -6,9 +6,11 @@ import com.alibaba.dashscope.aigc.generation.GenerationResult;
 import com.alibaba.dashscope.common.Message;
 import com.alibaba.dashscope.common.Role;
 import com.smartinterview.common.exception.AiServiceException;
+import com.smartinterview.manager.PromptManager;
 import com.smartinterview.service.AiAnalysisService;
 import io.reactivex.Flowable;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -23,6 +25,8 @@ import java.util.List;
 public class AiAnalysisServiceImpl implements AiAnalysisService {
     @Value("${aliyun.dashscope.api-key}")
     private String apiKey;
+    @Autowired
+    private PromptManager promptManager;
 
     /**
      * 分析简历
@@ -34,22 +38,7 @@ public class AiAnalysisServiceImpl implements AiAnalysisService {
             //gen对象用于跟通义千问通信
             Generation gen=new Generation();
             //定义 System Prompt（系统指令）：给 AI 设定“身份和工作规则
-            String systemPrompt = "你是一个拥有15年经验的BAT资深技术面试官。\n" +
-                    "请根据提供的候选人简历文本，进行客观、深度的结构化诊断分析。必须严格按照以下两部分及指定小标题输出：\n\n" +
-                    "===第一部分：展示给候选人的评估报告===\n" +
-                    "【一、核心优势】\n提炼候选人的技术亮点与岗位匹配度。\n" +
-                    "【二、潜在不足】\n指出简历中的薄弱环节、表述不清或容易在真实面试中被质疑的地方。\n" +
-                    "【三、面试方向预测】\n基于简历，预测面试官最可能深挖的3个核心技术点或项目难点。仅指出复习方向，严禁直接生成面试问题。\n\n" +
-                    "===第二部分：后端系统提取的内部上下文（严格按格式输出）===\n" +
-                    "【四、量化评分】\n" +
-                    "仅输出一个合法的JSON对象，包含五个维度的评分(0-100)。严禁包含多余的文字、Markdown代码块标记(如```json)、或时间戳等无关数据。\n" +
-                    "格式模板：{\"total\":85, \"technical\":80, \"project\":90, \"clarity\":85, \"potential\":85}\n" +
-                    "【五、项目摘要】\n" +
-                    "重要指令：本段落将作为后续AI面试官的专属System Prompt，必须保留最核心的技术细节和项目场景，字数控制在600-800字左右。必须使用纯客观陈述句，严禁使用对话语气（如'你好'、'请问'）。\n" +
-                    "请结构化罗列以下硬核信息：\n" +
-                    "1. [技术栈深层锚点]：必须提取具体的技术落地细节（示例：严禁写'熟悉Redis'，应写为'使用Redis Lua脚本结合分布式锁解决高并发超卖'）。\n" +
-                    "2. [项目高光与复杂逻辑]：提炼最复杂的业务链路、架构设计或性能优化数据（如QPS提升指标、分表策略）。\n" +
-                    "3. [硬核追问靶点]：指出简历中描述单薄或极度考验底层原理的技术点，供后续生成深度连环追问。";
+            String systemPrompt =promptManager.getResumeAnalysisSystemPrompt();
             //构建系统消息
             Message systemMsg=Message.builder()
                     .role(Role.SYSTEM.getValue()) //消息角色就是告诉AI是谁发送的消息

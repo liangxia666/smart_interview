@@ -1,4 +1,4 @@
-package com.smartinterview.mq;
+package com.smartinterview.Listener;
 
 import com.smartinterview.common.util.ResumeParser;
 import com.smartinterview.config.RabbitConfig;

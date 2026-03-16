@@ -11,6 +11,7 @@ import com.smartinterview.common.constants.RedisConstants;
 import com.smartinterview.entity.ChatMessage;
 import com.smartinterview.entity.InterviewSession;
 import com.smartinterview.entity.ResumeAnalysis;
+import com.smartinterview.manager.PromptManager;
 import com.smartinterview.service.AiAnalysisService;
 import com.smartinterview.service.InterviewSessionService;
 import com.smartinterview.mapper.InterviewSessionMapper;
@@ -43,6 +44,8 @@ public class InterviewSessionServiceImpl extends ServiceImpl<InterviewSessionMap
     private AiAnalysisServiceImpl aianalysisService;
     @Autowired
     private ResumeAnalysisServiceImpl resumeAnalysisService;
+    @Autowired
+    private PromptManager promptManager;
     private static final int MAX_HISTORY_MSG=10;
 
     /**
@@ -61,14 +64,7 @@ public class InterviewSessionServiceImpl extends ServiceImpl<InterviewSessionMap
        String summaryText=getSummary(sessionId);
        //系统提示词
         // 系统提示词
-        String systemPrompt = "你是一个拥有15年经验的大厂技术面试官。以下是该候选人的简历核心画像：\n"
-                + summaryText +
-                "\n【面试规则】：\n"
-                + "1. 严禁重复提问已经讨论过的问题或知识点。\n"
-                + "2. 每一轮提问必须基于候选人的上一次回答进行针对性深挖，或者切换到另一个尚未涉及的技术维度。\n"
-                + "3. 如果发现候选人已经回答得非常透彻，请立刻转换话题。\n"
-                + "4. 每次只提问1个具体的技术问题，切勿长篇大论。请以专业、严厉的语气进行考核。"
-                + "5.严禁出现'你好'、'很高兴为你面试'等寒暄,直接进入技术对线";
+        String systemPrompt = promptManager.buildInterviewChatSystemPrompt(summaryText);
        messages.add(Message.builder().role(Role.SYSTEM.getValue()).content(systemPrompt).build());
        //查询当前会话框的历史对话
         List<String> range = stringRedisTemplate.opsForList().range(redisKey, 0, -1);
