@@ -1,6 +1,7 @@
-package com.smartinterview.manager;
+package com.smartinterview.common.manager;
 
 import cn.hutool.core.io.IoUtil;
+import cn.hutool.core.util.StrUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
@@ -51,9 +52,14 @@ public class PromptManager {
     /**
      * 动态构建面试官提示词（替换占位符）
      */
-    public String buildInterviewChatSystemPrompt(String summaryText) {
+    public String buildInterviewChatSystemPrompt(String summaryText,String ragContext) {
         String context = summaryText != null ? summaryText : "暂无简历画像";
 
-        return interviewChatTemplate.replace("{{summaryText}}", context);
+        //查到标准答案就组装，没查到就留空
+        String ragPrompt= StrUtil.isNotBlank(ragContext)
+                ? "\n【标准参考答案】：\n" + ragContext
+                : "";
+        return interviewChatTemplate.replace("{{summaryText}}", context)
+                .replace("{{ragContext}}",ragPrompt);
     }
 }

@@ -8,14 +8,16 @@ import com.alibaba.dashscope.common.Message;
 import com.alibaba.dashscope.common.Role;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.smartinterview.common.constants.RedisConstants;
+import com.smartinterview.common.manager.PromptManager;
 import com.smartinterview.entity.ChatMessage;
 import com.smartinterview.entity.InterviewSession;
 import com.smartinterview.entity.ResumeAnalysis;
-import com.smartinterview.manager.PromptManager;
 import com.smartinterview.service.AiAnalysisService;
 import com.smartinterview.service.InterviewSessionService;
 import com.smartinterview.mapper.InterviewSessionMapper;
+import com.smartinterview.service.SysQuestionService;
 import io.reactivex.Flowable;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -34,6 +36,7 @@ import java.util.concurrent.TimeUnit;
 * @createDate 2026-02-26 16:36:05
 */
 @Service
+@Slf4j
 public class InterviewSessionServiceImpl extends ServiceImpl<InterviewSessionMapper, InterviewSession>
     implements InterviewSessionService{
     @Autowired
@@ -47,7 +50,8 @@ public class InterviewSessionServiceImpl extends ServiceImpl<InterviewSessionMap
     @Autowired
     private PromptManager promptManager;
     private static final int MAX_HISTORY_MSG=10;
-
+    @Autowired
+    private SysQuestionService sysQuestionService;
     /**
      * 由系统提示词+历史会话+当前用户会话共同组成消息集合传到AI生成流式文本
      * @param sessionId
@@ -60,21 +64,45 @@ public class InterviewSessionServiceImpl extends ServiceImpl<InterviewSessionMap
         SseEmitter emitter = new SseEmitter(60000L);
        String redisKey = RedisConstants.INTERVIEW_CHAT_HISTORY+sessionId;
        List<Message> messages=new ArrayList();
-       //摘要
-       String summaryText=getSummary(sessionId);
-       //系统提示词
-        // 系统提示词
-        String systemPrompt = promptManager.buildInterviewChatSystemPrompt(summaryText);
-       messages.add(Message.builder().role(Role.SYSTEM.getValue()).content(systemPrompt).build());
-       //查询当前会话框的历史对话
+
+       //========获取历史消息=========
+        List<Message> historyMessage=new ArrayList<>();
+        //查询当前会话框的历史对话
         List<String> range = stringRedisTemplate.opsForList().range(redisKey, 0, -1);
         //在添加到消息中
         if(range!=null&&!range.isEmpty()){
             for(String s:range){
                 Message msg= JSONUtil.toBean(s,Message.class,false);
-                messages.add(msg);
+                historyMessage.add(msg);
             }
         }
+       //提取AI上一条问题
+        String lastAiQuestion="";
+        //集合只声明的话为null
+        if(historyMessage!=null&&!historyMessage.isEmpty()){
+            Message lastMsg= historyMessage.get(messages.size()-1);
+            if(Role.ASSISTANT.getValue().equals(lastMsg.getRole())){
+                lastAiQuestion=lastMsg.getContent();
+            }
+        }
+
+        //将AI的问题跟用户的回答拼接在一起作为检索的依据
+        String searchQuery=lastAiQuestion+" "+userMessage;
+       //获取标准答案
+        String standerAnswer=sysQuestionService.searchStanderAnswer(searchQuery);
+        if(standerAnswer!=null){
+            log.info("RAG命中标准答案：{}",standerAnswer);
+        }else{
+            log.info("RAG未命中，大模型将自由发挥");
+        }
+        //摘要
+        String summaryText=getSummary(sessionId);
+        // 系统提示词
+        String systemPrompt = promptManager.buildInterviewChatSystemPrompt(summaryText,standerAnswer);
+        //添加系统提示此消息
+        messages.add(Message.builder().role(Role.SYSTEM.getValue()).content(systemPrompt).build());
+        //添加历史消息
+        messages.addAll(historyMessage);
         //添加本次用户消息
         Message currentUserMsg=Message.builder().role(Role.USER.getValue()).content(userMessage).build();
         messages.add(currentUserMsg);

@@ -10,4 +10,5 @@ import com.baomidou.mybatisplus.extension.service.IService;
 */
 public interface SysQuestionService extends IService<SysQuestion> {
 
+     String searchStanderAnswer(String userMessage);
 }

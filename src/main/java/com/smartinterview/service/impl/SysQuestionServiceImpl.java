@@ -1,5 +1,7 @@
 package com.smartinterview.service.impl;
 
+import cn.hutool.core.util.StrUtil;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.smartinterview.entity.SysQuestion;
 import com.smartinterview.service.SysQuestionService;
@@ -15,6 +17,21 @@ import org.springframework.stereotype.Service;
 public class SysQuestionServiceImpl extends ServiceImpl<SysQuestionMapper, SysQuestion>
     implements SysQuestionService{
 
+    public String searchStanderAnswer(String userMessage){
+        if(StrUtil.isBlank(userMessage)){
+            return null;
+        }
+        //防止sql拼接错误
+        String safeKeyword = userMessage.replace("'","");
+        QueryWrapper<SysQuestion> wrapper=new QueryWrapper<>();
+        //last拼接到sql语句最后，match全文索引匹配，默认自然语言模式
+        wrapper.last("where match(question,answer) against('"+safeKeyword+"'in natural language mode");
+        SysQuestion matchedQuestion=getOne(wrapper);
+        if(matchedQuestion!=null){
+            return "【原题】：" + matchedQuestion.getQuestion() + "\n【标准答案】：" + matchedQuestion.getAnswer();
+        }
+        return null;
+    }
 }
 
 
