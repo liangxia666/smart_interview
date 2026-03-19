@@ -241,6 +241,9 @@ public class InterviewSessionServiceImpl extends ServiceImpl<InterviewSessionMap
         }
         Long resumeId = session.getResumeId();
         ResumeAnalysis resumeAnalysis =resumeAnalysisService.getById(resumeId);
+        if(resumeAnalysis==null){
+            return "简历找不到，请直接开始技术相关的面试";
+        }
         String summary=resumeAnalysis.getSummary();
         return summary;
     }

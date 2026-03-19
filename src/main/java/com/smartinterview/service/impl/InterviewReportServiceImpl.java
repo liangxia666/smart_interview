@@ -47,7 +47,7 @@ public class InterviewReportServiceImpl extends ServiceImpl<InterviewReportMappe
             log.info("AI单题评分结果：{}",aiRaw);
             //解析json
             int start=aiRaw.indexOf("{");
-            int end=aiRaw.indexOf("}");
+            int end = aiRaw.lastIndexOf("}");
             if(start==-1||end==-1){
                 log.error("AI评分返回格式异常");
                 return ;
