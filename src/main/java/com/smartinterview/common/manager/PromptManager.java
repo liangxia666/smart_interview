@@ -23,19 +23,23 @@ public class PromptManager {
 
     @Value("classpath:prompts/interview-chat-system.st")
     private Resource interviewChatResource;
+    @Value("classpath:prompts/evaluate-answer.st")
+    private Resource evaluateAnswerResource;
 
     // 缓存在内存中的字符串，避免每次请求都去读文件
     private String resumeAnalysisTemplate;
     private String interviewChatTemplate;
-
+    private String evaluateAnswerTemplate;
     /**
      * 项目启动时自动将文件内容加载到内存中
      */
     @PostConstruct
     public void init() {
         try {
+            //将文件输入流读取成字符串，指定UTF-8编码
             resumeAnalysisTemplate = IoUtil.read(resumeAnalysisResource.getInputStream(), StandardCharsets.UTF_8);
             interviewChatTemplate = IoUtil.read(interviewChatResource.getInputStream(), StandardCharsets.UTF_8);
+            evaluateAnswerTemplate=IoUtil.read(evaluateAnswerResource.getInputStream(),StandardCharsets.UTF_8);
             log.info("AI Prompt 模板加载完成！");
         } catch (Exception e) {
             log.error("AI Prompt 模板加载失败，请检查文件路径！", e);
@@ -62,4 +66,12 @@ public class PromptManager {
         return interviewChatTemplate.replace("{{summaryText}}", context)
                 .replace("{{ragContext}}",ragPrompt);
     }
+    public String buildEvaluationPrompt(String aiQuestion,String userAnswer,String standardAnswer){
+        String userAnswerFinal = StrUtil.isNotBlank(userAnswer) ? userAnswer : "（候选人未作答）";
+        String stdAnswerFinal=StrUtil.isNotBlank(standardAnswer)?standardAnswer:"（无标准答案，请依据业界最佳实践评判）";
+        return evaluateAnswerTemplate.replace("{{aiQuestion}}",aiQuestion)
+                .replace("{{userAnswer}}",userAnswerFinal)
+                .replace("{{stdPart}}",stdAnswerFinal);
+    }
+
 }

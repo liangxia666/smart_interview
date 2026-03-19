@@ -5,8 +5,11 @@ import com.alibaba.dashscope.aigc.generation.GenerationParam;
 import com.alibaba.dashscope.aigc.generation.GenerationResult;
 import com.alibaba.dashscope.common.Message;
 import com.alibaba.dashscope.common.Role;
+import com.alibaba.dashscope.exception.InputRequiredException;
+import com.alibaba.dashscope.exception.NoApiKeyException;
 import com.smartinterview.common.exception.AiServiceException;
-import com.smartinterview.manager.PromptManager;
+
+import com.smartinterview.common.manager.PromptManager;
 import com.smartinterview.service.AiAnalysisService;
 import io.reactivex.Flowable;
 import lombok.extern.slf4j.Slf4j;
@@ -14,6 +17,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -89,5 +93,34 @@ public class AiAnalysisServiceImpl implements AiAnalysisService {
             log.info("AI多轮对话生成失败：{}",e);
             throw new AiServiceException("面试官开小差了，请再说一遍");
         }
+    }
+
+    /**
+     * 同步调用，对单道题目进行评分，返回json串
+     * @param aiQuestion
+     * @param userAnswer
+     * @param standardAnswer
+     * @return
+     */
+    public String evaluateAnswer(String aiQuestion,String userAnswer,String standardAnswer){
+        try {
+            Generation gen=new Generation();
+            String prompt=promptManager.buildEvaluationPrompt(aiQuestion,userAnswer,standardAnswer);
+            Message userMsg=Message.builder().role(Role.USER.getValue()).content(prompt).build();
+            GenerationParam param=GenerationParam.builder()
+                    .model("qwen-turbo")
+                    .messages(Arrays.asList(userMsg))
+                    .resultFormat(GenerationParam.ResultFormat.MESSAGE)
+                    .apiKey(apiKey)
+                    .build();
+            //非流式，一次性返回所有结果。
+            GenerationResult result = gen.call(param);
+            return result.getOutput().getChoices().get(0).getMessage().getContent();
+        }catch (Exception e) {
+            log.error("AI评分失败",e);
+            return "{\"score\":0,\"comment\":\"评分异常\",\"isCorrect\":false}";
+        }
+
+
     }
 }

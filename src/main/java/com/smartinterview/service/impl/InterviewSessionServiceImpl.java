@@ -5,14 +5,19 @@ import cn.hutool.core.util.StrUtil;
 import cn.hutool.json.JSONUtil;
 import com.alibaba.dashscope.aigc.generation.GenerationResult;
 import com.alibaba.dashscope.common.Message;
+
 import com.alibaba.dashscope.common.Role;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.smartinterview.common.constants.RedisConstants;
 import com.smartinterview.common.manager.PromptManager;
+import com.smartinterview.common.result.Result;
+import com.smartinterview.common.util.UserHolder;
+import com.smartinterview.dto.StartInterviewDTO;
 import com.smartinterview.entity.ChatMessage;
 import com.smartinterview.entity.InterviewSession;
 import com.smartinterview.entity.ResumeAnalysis;
 import com.smartinterview.service.AiAnalysisService;
+import com.smartinterview.service.InterviewReportService;
 import com.smartinterview.service.InterviewSessionService;
 import com.smartinterview.mapper.InterviewSessionMapper;
 import com.smartinterview.service.SysQuestionService;
@@ -22,12 +27,15 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -52,7 +60,38 @@ public class InterviewSessionServiceImpl extends ServiceImpl<InterviewSessionMap
     private static final int MAX_HISTORY_MSG=10;
     @Autowired
     private SysQuestionService sysQuestionService;
+    @Autowired
+    private InterviewReportService interviewReportService;
+
+
+    public Result  startInterview(StartInterviewDTO dto){
+        ResumeAnalysis resume=resumeAnalysisService.getById(dto.getResumeId());
+        if(resume==null){
+            return Result.error("找不到该简历");
+        }
+        if(resume.getStatus()<2||resume.getStatus()==null){
+            return Result.error("简历尚未分析完毕");
+        }
+        Long userId=UserHolder.getUser().getId();;
+        InterviewSession session=InterviewSession.builder()
+                .userId(userId)
+                .difficulty(dto.getDifficulty())
+                .category(dto.getCategory())
+                .resumeId(dto.getResumeId())
+                .createTime(LocalDateTime.now())
+                .updateTime(LocalDateTime.now())
+                .title(dto.getTitle())
+                .status(0)
+                .isDeleted(0)
+                .build();
+        save(session);
+        log.info("面试会话已创建，会话ID:{},用户ID:{}",session.getId(),userId);
+        Map<String,Long> map=new HashMap<>();
+        map.put("sessionId",session.getId());
+        return Result.success(map);
+    }
     /**
+     *  面试对话：SSE 流式返回 AI 回复
      * 由系统提示词+历史会话+当前用户会话共同组成消息集合传到AI生成流式文本
      * @param sessionId
      * @param userMessage
@@ -77,15 +116,16 @@ public class InterviewSessionServiceImpl extends ServiceImpl<InterviewSessionMap
             }
         }
        //提取AI上一条问题
-        String lastAiQuestion="";
         //集合只声明的话为null
+         String lastAiQuestion="";
         if(historyMessage!=null&&!historyMessage.isEmpty()){
-            Message lastMsg= historyMessage.get(messages.size()-1);
+            Message lastMsg= historyMessage.get(historyMessage.size()-1);
             if(Role.ASSISTANT.getValue().equals(lastMsg.getRole())){
-                lastAiQuestion=lastMsg.getContent();
+              lastAiQuestion=lastMsg.getContent();
             }
         }
-
+        //lambda表达式里变量必须是final或为被修改过的
+       final  String aiQuestion=lastAiQuestion;
         //将AI的问题跟用户的回答拼接在一起作为检索的依据
         String searchQuery=lastAiQuestion+" "+userMessage;
        //获取标准答案
@@ -107,13 +147,15 @@ public class InterviewSessionServiceImpl extends ServiceImpl<InterviewSessionMap
         Message currentUserMsg=Message.builder().role(Role.USER.getValue()).content(userMessage).build();
         messages.add(currentUserMsg);
         //将用户的发言先异步存入mysql
-        saveMessage(sessionId,Role.USER.getValue(),userMessage);
+        ChatMessage chatMessage = saveMessage(sessionId, Role.USER.getValue(), userMessage);
         //调用AI开启流式聊天
         Flowable<GenerationResult> flowable=aianalysisService.streamChat(messages);
         //拼接字符串
         StringBuilder aiResponseBuffer=new StringBuilder();
+
         flowable.subscribe(
                 result -> {
+
                     String chunk=result.getOutput().getChoices().get(0).getMessage().getContent();
                     if(StrUtil.isNotBlank(chunk)){
                         aiResponseBuffer.append(chunk);
@@ -145,6 +187,13 @@ public class InterviewSessionServiceImpl extends ServiceImpl<InterviewSessionMap
                     stringRedisTemplate.expire(redisKey,RedisConstants.INTERVIEW_CHAT_TTL, TimeUnit.MINUTES);
                     //将AI消息保存到数据库
                     saveMessage(sessionId,Role.ASSISTANT.getValue(), aiFullResponse);
+                    //异步触发单题评分
+                    interviewReportService.saveQuestionReport(
+                            sessionId,
+                            chatMessage.getId(),
+                            aiQuestion,
+                            userMessage,
+                            standerAnswer);
                     emitter.send("DONE");
                     emitter.complete();
                 }
@@ -152,7 +201,29 @@ public class InterviewSessionServiceImpl extends ServiceImpl<InterviewSessionMap
         );
         return emitter;
     }
-    public void saveMessage(Long sessionId,String role,String content){
+
+   public Result finishInterview(Long sessionId) {
+
+       if (sessionId == null) {
+           return Result.error("sessionId 不能为空");
+       }
+       InterviewSession session = getById(sessionId);
+       if (session == null) {
+           return Result.error("会话不存在");
+       }
+       if (Integer.valueOf(1).equals(session.getStatus())) {
+           return Result.error("面试已结束，请勿重复操作");
+       }
+       session.setStatus(1);
+       session.setUpdateTime(LocalDateTime.now());
+       updateById(session);
+       log.info("面试结束，sessionId={}", sessionId);
+       return Result.success();
+
+   }
+   //私有工具方法
+    //添加消息
+    public ChatMessage saveMessage(Long sessionId,String role,String content){
         ChatMessage chatMessage=ChatMessage.builder()
                 .sessionId(sessionId)
                 .content(content)
@@ -160,8 +231,9 @@ public class InterviewSessionServiceImpl extends ServiceImpl<InterviewSessionMap
                 .createTime(LocalDateTime.now())
                 .build();
         chatMessageService.save(chatMessage);
-
+        return chatMessage;
     }
+    //提取简历摘要
     private String getSummary(Long sessionId){
         InterviewSession session = getById(sessionId);
         if(session==null){
@@ -172,6 +244,7 @@ public class InterviewSessionServiceImpl extends ServiceImpl<InterviewSessionMap
         String summary=resumeAnalysis.getSummary();
         return summary;
     }
+
 }
 
 

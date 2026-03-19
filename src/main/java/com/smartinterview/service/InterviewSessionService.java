@@ -1,8 +1,12 @@
 package com.smartinterview.service;
 
+import com.smartinterview.common.result.Result;
+import com.smartinterview.dto.StartInterviewDTO;
 import com.smartinterview.entity.InterviewSession;
 import com.baomidou.mybatisplus.extension.service.IService;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+
+import java.util.Map;
 
 /**
 * @author 32341
@@ -12,4 +16,8 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 public interface InterviewSessionService extends IService<InterviewSession> {
 
     SseEmitter chat(Long sessionId,String userMessage);
+
+    Result finishInterview(Long sessionId);
+
+    Result startInterview(StartInterviewDTO dto);
 }

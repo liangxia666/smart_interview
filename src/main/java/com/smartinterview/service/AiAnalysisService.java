@@ -10,4 +10,5 @@ public interface AiAnalysisService {
      Flowable<GenerationResult> streamAnalyzeResume(String rawText);
 
      Flowable<GenerationResult> streamChat(List<Message> messages);
+     String evaluateAnswer (String aiQuestion,String userAnswer,String standerAnswer);
 }

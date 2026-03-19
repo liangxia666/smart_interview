@@ -28,6 +28,8 @@ public class InterviewSession {
 
     private Long resumeId;
 
+    private Integer status;
+
     private String category;
 
     private String difficulty;
