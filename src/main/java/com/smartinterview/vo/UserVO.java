@@ -8,8 +8,10 @@ import lombok.NoArgsConstructor;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-public class ResumeReportVO {
-    private String userReport;
-    private String sort;
-    private String systemSummary;
+@Builder
+public class UserVO {
+    private Long id;
+    private String nickName;
+    private String avatar;
+    private String phone;
 }

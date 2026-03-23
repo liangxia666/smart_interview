@@ -1,10 +1,14 @@
 package com.smartinterview.service;
 
-import com.smartinterview.common.result.Result;
+import com.smartinterview.common.result.PageResult;
 import com.smartinterview.entity.ResumeAnalysis;
 import com.baomidou.mybatisplus.extension.service.IService;
+import com.smartinterview.vo.ResumeUploadVO;
+import com.smartinterview.vo.ResumeVO;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+
+import java.util.List;
 
 /**
 * @author 32341
@@ -13,9 +17,14 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 */
 public interface ResumeAnalysisService extends IService<ResumeAnalysis> {
 
-    Result upload(MultipartFile file, String intention);
+    ResumeUploadVO upload(MultipartFile file, String intention);
 
     SseEmitter streamAiAnalysis(Long resumeId);
 
+    List<ResumeVO> queryResume();
 
+    void logicalDelete(Long resumeId);
+
+
+    // PageResult pageQuery(Integer current, Integer size);
 }

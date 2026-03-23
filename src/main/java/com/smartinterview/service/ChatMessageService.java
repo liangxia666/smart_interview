@@ -3,6 +3,8 @@ package com.smartinterview.service;
 import com.smartinterview.entity.ChatMessage;
 import com.baomidou.mybatisplus.extension.service.IService;
 
+import java.util.List;
+
 /**
 * @author 32341
 * @description 针对表【chat_message(聊天记录明细表)】的数据库操作Service
@@ -10,4 +12,5 @@ import com.baomidou.mybatisplus.extension.service.IService;
 */
 public interface ChatMessageService extends IService<ChatMessage> {
 
+    List<ChatMessage> queryBySessionId(Long sessionId);
 }

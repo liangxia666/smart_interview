@@ -1,9 +1,6 @@
 package com.smartinterview.entity;
 
-import com.baomidou.mybatisplus.annotation.IdType;
-import com.baomidou.mybatisplus.annotation.TableField;
-import com.baomidou.mybatisplus.annotation.TableId;
-import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.*;
 
 import java.time.LocalDateTime;
 import java.util.Date;
@@ -39,6 +36,10 @@ public class InterviewSession {
     private LocalDateTime createTime;
 
     private LocalDateTime updateTime;
+    private Integer totalScore;
 
+    //逻辑删除字段0未删除 ，1已删除
+    //查询自动加where isDelete=0,移除时自动加isDelete=1
+    @TableLogic
     private Integer isDeleted;
 }

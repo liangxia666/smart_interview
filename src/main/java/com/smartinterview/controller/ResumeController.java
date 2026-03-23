@@ -1,12 +1,15 @@
 package com.smartinterview.controller;
 
 import cn.hutool.core.lang.UUID;
+import com.smartinterview.common.result.PageResult;
 import com.smartinterview.common.result.Result;
 import com.smartinterview.common.util.AliOssUtil;
 import com.smartinterview.common.util.UserHolder;
 import com.smartinterview.config.RabbitConfig;
 import com.smartinterview.entity.ResumeAnalysis;
 import com.smartinterview.service.ResumeAnalysisService;
+import com.smartinterview.vo.ResumeUploadVO;
+import com.smartinterview.vo.ResumeVO;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
@@ -19,6 +22,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -28,12 +32,15 @@ public class ResumeController {
     @Autowired
     private ResumeAnalysisService resumeAnalysisService;
 
+
     @Operation(summary = "上传简历")
     @PostMapping("upload")
     public Result uploadResume(@RequestParam("file") MultipartFile file,
                                @RequestParam(value = "intention", required = false,
                                        defaultValue = "Java软件开发") String intention) {
-        return resumeAnalysisService.upload(file, intention);
+        log.info("开始上传简历：{}",file.getOriginalFilename());
+        ResumeUploadVO upload = resumeAnalysisService.upload(file, intention);
+        return Result.success(upload.getResumeId());
     }
 
     /**
@@ -49,6 +56,7 @@ public class ResumeController {
         response.setCharacterEncoding("UTF-8");
         //告知前端传送流式文本数据，采用UTF--8编码
        response.setContentType("text/event-stream;charset=UTF-8");
+       log.info("开始分析简历，简历id:{}",resumeId);
         return resumeAnalysisService.streamAiAnalysis(resumeId);
 
     }
@@ -61,6 +69,26 @@ public class ResumeController {
         }
         return Result.success(resume.getStatus());
     }
+//    @Operation(summary="查询简历列表")
+//    @GetMapping("page")
+//    public Result pageQuery(@RequestParam(defaultValue="1") Integer current,@RequestParam(defaultValue = "10")Integer size){
+//      PageResult pageResult=  resumeAnalysisService.pageQuery(current,size);
+//      return Result.success(pageResult);
+//    }
+    @Operation(summary="查询简历列表")
+    @GetMapping("list")
+    public Result queryResume(){
+       List<ResumeVO> resumeVO =resumeAnalysisService.queryResume();
+       return Result.success(resumeVO);
+
+    }
+    @Operation(summary="逻辑删除")
+    @DeleteMapping("{resumeId}")
+    public Result LogicalDelete(@PathVariable Long resumeId){
+        resumeAnalysisService.logicalDelete(resumeId);
+        return Result.success();
+    }
+
 
 
 }

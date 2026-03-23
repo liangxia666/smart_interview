@@ -1,12 +1,14 @@
 package com.smartinterview.service;
 
-import com.smartinterview.common.result.Result;
 import com.smartinterview.dto.StartInterviewDTO;
 import com.smartinterview.entity.InterviewSession;
 import com.baomidou.mybatisplus.extension.service.IService;
+import com.smartinterview.vo.InterviewSessionVO;
+import com.smartinterview.vo.InterviewStartVO;
+import com.smartinterview.vo.InterviewStatsVO;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
-import java.util.Map;
+import java.util.List;
 
 /**
 * @author 32341
@@ -17,7 +19,13 @@ public interface InterviewSessionService extends IService<InterviewSession> {
 
     SseEmitter chat(Long sessionId,String userMessage);
 
-    Result finishInterview(Long sessionId);
+    void finishInterview(Long sessionId);
 
-    Result startInterview(StartInterviewDTO dto);
+    InterviewStartVO startInterview(StartInterviewDTO dto);
+
+    List<InterviewSessionVO> queryInterview();
+
+    void logicalDelete(Long sessionId);
+
+    InterviewStatsVO getInterviewStats();
 }

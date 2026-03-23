@@ -1,24 +1,43 @@
 package com.smartinterview.service.impl;
 
+import cn.hutool.core.util.StrUtil;
 import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.itextpdf.kernel.colors.ColorConstants;
+import com.itextpdf.kernel.colors.DeviceRgb;
+import com.itextpdf.kernel.font.PdfFont;
+import com.itextpdf.kernel.font.PdfFontFactory;
+import com.itextpdf.kernel.geom.PageSize;
+import com.itextpdf.kernel.pdf.PdfDocument;
+import com.itextpdf.kernel.pdf.PdfWriter;
+import com.itextpdf.kernel.pdf.canvas.draw.DashedLine;
+import com.itextpdf.kernel.pdf.canvas.draw.SolidLine;
+import com.itextpdf.layout.Document;
+import com.itextpdf.layout.element.*;
+import com.itextpdf.layout.properties.TextAlignment;
+import com.itextpdf.layout.properties.UnitValue;
+import com.smartinterview.common.exception.InterviewSessionException;
 import com.smartinterview.common.result.Result;
 import com.smartinterview.entity.InterviewReport;
 import com.smartinterview.entity.InterviewSession;
 import com.smartinterview.mapper.InterviewReportMapper;
+import com.smartinterview.mapper.InterviewSessionMapper;
 import com.smartinterview.service.AiAnalysisService;
 import com.smartinterview.service.InterviewReportService;
 
 import com.smartinterview.service.InterviewSessionService;
 import com.smartinterview.vo.InterviewReportVO;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
+import java.net.URLEncoder;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -29,7 +48,7 @@ public class InterviewReportServiceImpl extends ServiceImpl<InterviewReportMappe
     @Autowired
     private AiAnalysisService aiAnalysisService;
     @Autowired
-    private InterviewSessionService interviewSessionService;
+    private InterviewSessionMapper interviewSessionMapper;
 
     /**
      * 生成报告对象，存到数据库
@@ -81,14 +100,14 @@ public class InterviewReportServiceImpl extends ServiceImpl<InterviewReportMappe
      * @param sessionId
      * @return
      */
-    public Result<InterviewReportVO> buildReport(Long sessionId){
+    public InterviewReportVO buildReport(Long sessionId){
         //判断面试状态
-        InterviewSession session=interviewSessionService.getById(sessionId);
+        InterviewSession session=interviewSessionMapper.selectById(sessionId);
         if(session==null){
-            return Result.error("面试记录不存在");
+            throw new InterviewSessionException("面试记录不存在");
         }
         if(session.getStatus().equals(Integer.valueOf(0))){
-            return Result.error("面试未结束，请先完成面试");
+            throw new InterviewSessionException("面试还未完成，请先完成面试");
         }
         //获取报告内容
         LambdaQueryWrapper<InterviewReport> wrapper=new LambdaQueryWrapper<>();
@@ -104,7 +123,7 @@ public class InterviewReportServiceImpl extends ServiceImpl<InterviewReportMappe
             interviewReportVO.setCorrectCount(0);
             interviewReportVO.setCorrectRate("0%");
             interviewReportVO.setItems(List.of());
-            return Result.success(interviewReportVO);
+            return interviewReportVO;
         }
         int totalScore =(int) Math.round(  //将总分四舍五入
                 //将集合元素的score字段转为int 成为intStream
@@ -132,8 +151,202 @@ public class InterviewReportServiceImpl extends ServiceImpl<InterviewReportMappe
                     return item;
                 }).collect(Collectors.toList());
         interviewReportVO.setItems(items);
-        return Result.success(interviewReportVO);
+        return interviewReportVO;
     }
+    public void exportReport(Long sessionId, HttpServletResponse response){
+        InterviewSession session=interviewSessionMapper.selectById(sessionId);
+        if(session==null||!session.getStatus().equals(Integer.valueOf(2))){
+            throw new InterviewSessionException("面试不存在或未完成");
+        }
+        // 1. 查报告数据
+        List<InterviewReport> list = lambdaQuery()
+                .eq(InterviewReport::getSessionId, sessionId)
+                .orderByAsc(InterviewReport::getId)
+                .list();
 
+        // 2. 计算汇总数据
+        int totalScore =  (int) Math.round(
+                list.stream().mapToInt(r -> r.getScore())
+                        .average().orElse(0));
+        //计算正确的数量
+        long correctCount=list.stream()
+                .filter(r->Boolean.TRUE.equals(r.getIsCorrect())).count();
+        //计算正确率 %.1f%%相当于2.5%
+        String correctRate = String.format("%.1f%%", correctCount * 100.0 / list.size());
+
+        try {
+            // 3. 设置响应头，告诉浏览器这是一个 PDF 下载
+            response.setContentType("application/pdf");
+            //设置编码
+            response.setCharacterEncoding("UTF-8");
+            //URLEncode编码设置文件名防止中文乱码
+            String fileName = URLEncoder.encode(
+                    session.getTitle() + "-面试报告.pdf", "UTF-8");
+            //设置响应头告知浏览器，以附件的形式下载
+            response.setHeader("Content-Disposition",
+                    "attachment; filename=\"" + fileName + "\"");
+
+            // 4. 将 PDF 写入响应输出流，直接返回给前端
+            PdfWriter writer = new PdfWriter(response.getOutputStream());
+            //创建pdf文档对象
+            PdfDocument pdf = new PdfDocument(writer);
+            //创建文本内容的容器
+            Document document = new Document(pdf, PageSize.A4);
+            //设置边距
+            document.setMargins(40, 50, 40, 50);
+
+            // 5. 加载中文字体（iText7 内置宋体）
+            PdfFont chineseFont = PdfFontFactory.createFont(
+                    "STSong-Light", "UniGB-UCS2-H",
+                    PdfFontFactory.EmbeddingStrategy.PREFER_EMBEDDED);
+            PdfFont boldFont = PdfFontFactory.createFont(
+                    "STSong-Light", "UniGB-UCS2-H",
+                    PdfFontFactory.EmbeddingStrategy.PREFER_EMBEDDED);
+
+            // ── 标题 ──
+            document.add(new Paragraph(session.getTitle() + " · 面试报告")
+                    .setFont(boldFont)//字体
+                    .setFontSize(20)//字号
+                    .setBold() //加粗
+                    .setTextAlignment(TextAlignment.CENTER) //居中
+                    .setMarginBottom(8)); //底部间距
+
+            // 面试时间
+            document.add(new Paragraph("面试时间：" +
+                    session.getCreateTime().format(
+                            DateTimeFormatter.ofPattern("yyyy年MM月dd日 HH:mm")))
+                    .setFont(chineseFont) //格式
+                    .setFontSize(10) //大小
+                    .setFontColor(ColorConstants.GRAY) //文本字体颜色
+                    .setTextAlignment(TextAlignment.CENTER) //居中
+                    .setMarginBottom(20));   //底部间距
+
+            // ── 分隔线 ──实线
+            document.add(new LineSeparator(new SolidLine(0.5f))
+                    .setMarginBottom(20));
+
+            // ── 综合评分区域 ──
+            document.add(new Paragraph("综合评估")
+                    .setFont(boldFont)
+                    .setFontSize(14)
+                    .setBold()
+                    .setMarginBottom(12));
+
+            // 评分表格 创建4列表格
+            Table scoreTable = new Table(UnitValue.createPercentArray(new float[]{1, 1, 1, 1}))
+                    .useAllAvailableWidth() //占满页宽
+                    .setMarginBottom(24);
+
+            // 创建表头
+            for (String header : new String[]{"综合得分", "答题数量", "答对数量", "正确率"}) {
+                scoreTable.addHeaderCell(new Cell()
+                        .add(new Paragraph(header) //表头文本
+                                .setFont(boldFont)
+                                .setFontSize(11)
+                                .setBold()
+                                .setTextAlignment(TextAlignment.CENTER))
+                        .setBackgroundColor(new DeviceRgb(59, 130, 246))  // 蓝色表头
+                        .setFontColor(ColorConstants.WHITE)
+                        .setPadding(10));//内间距
+            }
+
+            // 数据行
+            for (String value : new String[]{
+                    totalScore + " 分",
+                    list.size() + " 题",
+                    correctCount + " 题",
+                    correctRate}) {
+                scoreTable.addCell(new Cell()
+                        .add(new Paragraph(value)
+                                .setFont(chineseFont)
+                                .setFontSize(13)
+                                .setBold()
+                                .setTextAlignment(TextAlignment.CENTER))
+                        .setPadding(12)
+                        .setTextAlignment(TextAlignment.CENTER));
+            }
+            document.add(scoreTable);
+
+            // ── 题目详情 ──
+            document.add(new Paragraph("题目详情")
+                    .setFont(boldFont)
+                    .setFontSize(14)
+                    .setBold()
+                    .setMarginBottom(12));
+
+            for (int i = 0; i < list.size(); i++) {
+                InterviewReport report = list.get(i);
+                boolean correct = Boolean.TRUE.equals(report.getIsCorrect());
+
+                // 题目编号 + 正确/错误标签
+                Paragraph questionTitle = new Paragraph()
+                        .add(new Text("Q" + (i + 1) + "  ")
+                                .setFont(boldFont)
+                                .setFontSize(12)
+                                .setBold())
+                        .add(new Text(correct ? " ✓ 正确 " : " ✗ 错误 ")
+                                .setFont(chineseFont)
+                                .setFontSize(10)
+                                .setFontColor(ColorConstants.WHITE)
+                                .setBackgroundColor(correct
+                                        ? new DeviceRgb(34, 197, 94)   // 绿色
+                                        : new DeviceRgb(239, 68, 68))) // 红色
+                        .setMarginBottom(6);
+                document.add(questionTitle);
+
+                // 问题内容
+                document.add(new Paragraph("面试问题：" +
+                        (StrUtil.isNotBlank(report.getQuestionText())
+                                ? report.getQuestionText() : "暂无"))
+                        .setFont(chineseFont)
+                        .setFontSize(11)
+                        .setFontColor(new DeviceRgb(30, 30, 30))
+                        .setMarginBottom(4));
+
+                // 用户回答
+                document.add(new Paragraph("我的回答：" +
+                        (StrUtil.isNotBlank(report.getUserAnswer())
+                                ? report.getUserAnswer() : "未作答"))
+                        .setFont(chineseFont)
+                        .setFontSize(10)
+                        .setFontColor(new DeviceRgb(80, 80, 80))
+                        .setMarginBottom(4));
+
+                // AI 评价 + 得分
+                document.add(new Paragraph(
+                        "AI 评价：" + (StrUtil.isNotBlank(report.getComment())
+                                ? report.getComment() : "暂无评价") +
+                                "    得分：" + (report.getScore() != null
+                                ? report.getScore() + " 分" : "-"))
+                        .setFont(chineseFont)
+                        .setFontSize(10)
+                        .setFontColor(new DeviceRgb(100, 100, 100))
+                        .setMarginBottom(4));
+
+                // 题目之间加分隔线 dash虚线
+                if (i < list.size() - 1) {
+                    document.add(new LineSeparator(new DashedLine(0.5f))
+                            .setMarginTop(8)
+                            .setMarginBottom(12));
+                }
+            }
+
+            // ── 页脚 ──
+            document.add(new LineSeparator(new SolidLine(0.5f)).setMarginTop(20));
+            document.add(new Paragraph("由 Smart Interview 智能面试系统生成")
+                    .setFont(chineseFont)
+                    .setFontSize(9)
+                    .setFontColor(ColorConstants.GRAY)
+                    .setTextAlignment(TextAlignment.CENTER)
+                    .setMarginTop(8));
+
+            document.close();
+            log.info("面试报告 PDF 导出成功，sessionId={}", sessionId);
+
+        } catch (Exception e) {
+            log.error("PDF 导出失败，sessionId={}", sessionId, e);
+            throw new RuntimeException("PDF 导出失败，请重试");
+        }
+    }
 
 }

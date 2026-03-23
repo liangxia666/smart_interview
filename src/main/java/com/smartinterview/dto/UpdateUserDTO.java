@@ -3,9 +3,8 @@ package com.smartinterview.dto;
 import lombok.Data;
 
 @Data
-public class UserDTO {
+public class UpdateUserDTO {
     private Long id;
-    private String nickname;
     private String avatar;
-    private String phone;
+    private String nickname;
 }

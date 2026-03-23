@@ -7,36 +7,41 @@ import com.alibaba.dashscope.aigc.generation.GenerationResult;
 import com.alibaba.dashscope.common.Message;
 
 import com.alibaba.dashscope.common.Role;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.smartinterview.common.constants.RedisConstants;
+import com.smartinterview.common.exception.InterviewSessionException;
+import com.smartinterview.common.exception.ResumeAnalysisException;
+import com.smartinterview.common.exception.ResumeNotFindException;
 import com.smartinterview.common.manager.PromptManager;
 import com.smartinterview.common.result.Result;
 import com.smartinterview.common.util.UserHolder;
 import com.smartinterview.dto.StartInterviewDTO;
 import com.smartinterview.entity.ChatMessage;
+import com.smartinterview.entity.InterviewReport;
 import com.smartinterview.entity.InterviewSession;
 import com.smartinterview.entity.ResumeAnalysis;
-import com.smartinterview.service.AiAnalysisService;
 import com.smartinterview.service.InterviewReportService;
 import com.smartinterview.service.InterviewSessionService;
 import com.smartinterview.mapper.InterviewSessionMapper;
 import com.smartinterview.service.SysQuestionService;
+import com.smartinterview.vo.InterviewSessionVO;
+import com.smartinterview.vo.InterviewStartVO;
+import com.smartinterview.vo.InterviewStatsVO;
 import io.reactivex.Flowable;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
-import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 /**
 * @author 32341
@@ -64,15 +69,25 @@ public class InterviewSessionServiceImpl extends ServiceImpl<InterviewSessionMap
     private InterviewReportService interviewReportService;
 
 
-    public Result  startInterview(StartInterviewDTO dto){
+    public InterviewStartVO startInterview(StartInterviewDTO dto){
+        Long userId=UserHolder.getUser().getId();
         ResumeAnalysis resume=resumeAnalysisService.getById(dto.getResumeId());
         if(resume==null){
-            return Result.error("找不到该简历");
+            throw new ResumeNotFindException("简历未找到，请重新上传简历");
         }
-        if(resume.getStatus()<2||resume.getStatus()==null){
-            return Result.error("简历尚未分析完毕");
+        if(resume.getStatus()==null||resume.getStatus()<2){
+            throw new ResumeAnalysisException("简历尚未分析，请稍后重试");
         }
-        Long userId=UserHolder.getUser().getId();;
+        LambdaQueryWrapper<InterviewSession> existWrapper=new LambdaQueryWrapper<>();
+        existWrapper.eq(InterviewSession::getUserId,userId)
+                .eq(InterviewSession::getResumeId,resume.getId())
+                .eq(InterviewSession::getIsDeleted,0)
+                .eq(InterviewSession::getStatus,1)
+                .last("limit 1");
+        InterviewSession s = getOne(existWrapper);
+        if(s!=null){
+            return new InterviewStartVO(s.getId());
+        }
         InterviewSession session=InterviewSession.builder()
                 .userId(userId)
                 .difficulty(dto.getDifficulty())
@@ -81,14 +96,13 @@ public class InterviewSessionServiceImpl extends ServiceImpl<InterviewSessionMap
                 .createTime(LocalDateTime.now())
                 .updateTime(LocalDateTime.now())
                 .title(dto.getTitle())
-                .status(0)
+                .status(1)
                 .isDeleted(0)
                 .build();
         save(session);
         log.info("面试会话已创建，会话ID:{},用户ID:{}",session.getId(),userId);
-        Map<String,Long> map=new HashMap<>();
-        map.put("sessionId",session.getId());
-        return Result.success(map);
+
+        return new InterviewStartVO(session.getId());
     }
     /**
      *  面试对话：SSE 流式返回 AI 回复
@@ -99,8 +113,15 @@ public class InterviewSessionServiceImpl extends ServiceImpl<InterviewSessionMap
      */
     @Override
     public SseEmitter chat(Long sessionId, String userMessage) {
-
         SseEmitter emitter = new SseEmitter(60000L);
+        //校验session存在，且未结束
+        InterviewSession session=getById(sessionId);
+        if(session==null){
+            sendErrorAndClose(emitter,"面试会话不存在");
+        }
+        if(session.getStatus().equals(Integer.valueOf(2))){
+            sendErrorAndClose(emitter,"面试已结束，请重新上传简历");
+        }
        String redisKey = RedisConstants.INTERVIEW_CHAT_HISTORY+sessionId;
        List<Message> messages=new ArrayList();
 
@@ -138,7 +159,11 @@ public class InterviewSessionServiceImpl extends ServiceImpl<InterviewSessionMap
         //摘要
         String summaryText=getSummary(sessionId);
         // 系统提示词
-        String systemPrompt = promptManager.buildInterviewChatSystemPrompt(summaryText,standerAnswer);
+        String systemPrompt = promptManager.buildInterviewChatSystemPrompt(
+                summaryText,
+                standerAnswer,
+                session.getCategory(),
+                session.getDifficulty());
         //添加系统提示此消息
         messages.add(Message.builder().role(Role.SYSTEM.getValue()).content(systemPrompt).build());
         //添加历史消息
@@ -202,24 +227,49 @@ public class InterviewSessionServiceImpl extends ServiceImpl<InterviewSessionMap
         return emitter;
     }
 
-   public Result finishInterview(Long sessionId) {
+   public void finishInterview(Long sessionId) {
 
        if (sessionId == null) {
-           return Result.error("sessionId 不能为空");
+           throw new InterviewSessionException("sessionId 不能为空");
+
        }
        InterviewSession session = getById(sessionId);
        if (session == null) {
-           return Result.error("会话不存在");
+           throw new InterviewSessionException("会话不存在");
+
        }
-       if (Integer.valueOf(1).equals(session.getStatus())) {
-           return Result.error("面试已结束，请勿重复操作");
+       if (Integer.valueOf(2).equals(session.getStatus())) {
+           throw new InterviewSessionException("面试已结束，请勿重复操作");
+
        }
-       session.setStatus(1);
+       List<InterviewReport> reportList=interviewReportService.lambdaQuery()
+                       .eq(InterviewReport::getSessionId,sessionId)
+                               .list();
+       if(reportList!=null){
+          int avgScore=(int) Math.round( reportList.stream()
+                  .mapToInt(r->r.getScore())//转成int流
+                  .average() //求平均数
+                  .orElse(0) //集合为空时，没数据置0
+          );
+          session.setTotalScore(avgScore)
+       }
+
+       session.setStatus(2);
        session.setUpdateTime(LocalDateTime.now());
        updateById(session);
        log.info("面试结束，sessionId={}", sessionId);
-       return Result.success();
 
+
+   }
+   public List<InterviewSessionVO> queryInterview(){
+        Long userId=UserHolder.getUser().getId();
+        LambdaQueryWrapper<InterviewSession> wrapper=new LambdaQueryWrapper<>();
+        wrapper.eq(InterviewSession::getUserId,userId)
+                .orderByAsc(InterviewSession::getCreateTime);
+        List<InterviewSessionVO> vo=list(wrapper).stream()
+                .map(r-> BeanUtil.copyProperties(r,InterviewSessionVO.class))
+                .collect(Collectors.toList());
+        return vo;
    }
    //私有工具方法
     //添加消息
@@ -246,6 +296,43 @@ public class InterviewSessionServiceImpl extends ServiceImpl<InterviewSessionMap
         }
         String summary=resumeAnalysis.getSummary();
         return summary;
+    }
+    public void sendErrorAndClose(SseEmitter emitter,String message){
+        try {
+            emitter.send(message);
+            emitter.complete();
+        } catch (IOException e) {
+            emitter.completeWithError(e);
+        }
+    }
+    public void logicalDelete(Long sessionId){
+        InterviewSession interviewSession=getById(sessionId);
+        if(interviewSession==null){
+            throw new InterviewSessionException("找不到该面试记录");
+        }
+        removeById(sessionId);
+    }
+    public InterviewStatsVO getInterviewStats(){
+        Long userId=UserHolder.getUser().getId();
+        List<InterviewSession> list = lambdaQuery().eq(InterviewSession::getUserId, userId)
+                .orderByAsc(InterviewSession::getCreateTime)
+                .eq(InterviewSession::getStatus, 2)
+                .list();
+        //统计折线图图数据，每次面试的日期加得分
+        List<InterviewStatsVO.ScoreTrend> collect = list.stream().map(r -> {
+            InterviewStatsVO.ScoreTrend scoreTrend = new InterviewStatsVO.ScoreTrend();
+            scoreTrend.setDate(r.getCreateTime().format(DateTimeFormatter.ofPattern("MM-dd")));
+            scoreTrend.setTitle(r.getTitle());
+            scoreTrend.setScore(r.getTotalScore());
+            return scoreTrend;
+        }).collect(Collectors.toList());
+        //计算平均分,返回值类型是double需要强转int
+        int avgScore=Math.round((int) list.stream().mapToInt(r->r.getTotalScore()).average().orElse(0));
+        InterviewStatsVO vo =new InterviewStatsVO();
+        vo.setAvgScore(avgScore);
+        vo.setTotalCount(list.size());
+        vo.setScoreTrends(collect);
+        return vo;
     }
 
 }

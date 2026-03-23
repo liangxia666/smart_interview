@@ -1,10 +1,17 @@
 package com.smartinterview.service.impl;
 
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.smartinterview.common.exception.InterviewSessionException;
+import com.smartinterview.common.util.UserHolder;
 import com.smartinterview.entity.ChatMessage;
+import com.smartinterview.entity.InterviewSession;
 import com.smartinterview.service.ChatMessageService;
 import com.smartinterview.mapper.ChatMessageMapper;
+import com.smartinterview.service.InterviewSessionService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+
+import java.util.List;
 
 /**
 * @author 32341
@@ -14,6 +21,19 @@ import org.springframework.stereotype.Service;
 @Service
 public class ChatMessageServiceImpl extends ServiceImpl<ChatMessageMapper, ChatMessage>
     implements ChatMessageService{
+    @Autowired
+    private InterviewSessionService interviewSessionService;
+    public List<ChatMessage> queryBySessionId(Long sessionId){
+        InterviewSession session = interviewSessionService.getById(sessionId);
+        if(session==null){
+           throw new InterviewSessionException("面试不存在");
+       }
+        List<ChatMessage> list=lambdaQuery()
+                .eq(ChatMessage::getSessionId,sessionId)
+                .orderByAsc(ChatMessage::getCreateTime)
+                .list();
+        return list;
+    }
 
 }
 

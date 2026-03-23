@@ -42,6 +42,7 @@ public class MvcConfig implements WebMvcConfigurer {
                         // 用户相关接口
                         "/user/login",
                         "/user/code",
+                        "/user/avatar",
                         "/user/register",
                         "/resume/**"
                 )

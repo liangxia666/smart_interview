@@ -7,9 +7,6 @@ import lombok.NoArgsConstructor;
 
 @Data
 @AllArgsConstructor
-@NoArgsConstructor
-public class ResumeReportVO {
-    private String userReport;
-    private String sort;
-    private String systemSummary;
+public class ResumeUploadVO {
+    Long resumeId;
 }

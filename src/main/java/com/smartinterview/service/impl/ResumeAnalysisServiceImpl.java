@@ -1,12 +1,17 @@
 package com.smartinterview.service.impl;
 
+import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.lang.UUID;
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.json.JSONUtil;
 import com.alibaba.dashscope.aigc.generation.GenerationResult;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.smartinterview.common.exception.ResumeNotFindException;
 import com.smartinterview.common.exception.ResumeUploadException;
-import com.smartinterview.common.result.Result;
+import com.smartinterview.common.result.PageResult;
 import com.smartinterview.common.util.AliOssUtil;
 import com.smartinterview.common.util.UserHolder;
 import com.smartinterview.config.RabbitConfig;
@@ -15,7 +20,10 @@ import com.smartinterview.entity.ResumeAnalysis;
 import com.smartinterview.service.AiAnalysisService;
 import com.smartinterview.service.ResumeAnalysisService;
 import com.smartinterview.mapper.ResumeAnalysisMapper;
+
 import com.smartinterview.vo.ResumeReportVO;
+import com.smartinterview.vo.ResumeUploadVO;
+import com.smartinterview.vo.ResumeVO;
 import io.reactivex.Flowable;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
@@ -26,8 +34,8 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.List;
+import java.util.stream.Collectors;
 
 /**
 * @author 32341
@@ -46,13 +54,10 @@ public class ResumeAnalysisServiceImpl extends ServiceImpl<ResumeAnalysisMapper,
     @Autowired
     private RabbitTemplate rabbitTemplate;
     private final String RESUMEID="resumeId";
-    public Result upload(MultipartFile file,String intention)  {
+    public ResumeUploadVO upload(MultipartFile file, String intention)  {
         if(!file.getOriginalFilename().toLowerCase().endsWith(".pdf")){
-            return Result.error("目前仅支持PDF格式的简历");
+            throw new ResumeUploadException("目前仅支持pdf格式的文件上传");
         }
-
-
-        log.info("开始上传简历：{}",file.getOriginalFilename());
         //上传到OSS
         String fileName= null;
         String fileUrl = null;
@@ -74,11 +79,9 @@ public class ResumeAnalysisServiceImpl extends ServiceImpl<ResumeAnalysisMapper,
         Long resumeId=resumeAnalysis.getId();
         //发送到mq
         rabbitTemplate.convertAndSend(RabbitConfig.RESUME_PARSE_EXCHANGE,RabbitConfig.RESUME_ROUTING_KEY,resumeId);
-        //返回简历id
-        Map<String,Long> map=new HashMap<>();
-        map.put(RESUMEID,resumeId);
 
-        return Result.success(map);
+
+        return new ResumeUploadVO(resumeId);
     }
 
     /**
@@ -193,8 +196,43 @@ public class ResumeAnalysisServiceImpl extends ServiceImpl<ResumeAnalysisMapper,
         return resumeReportVO;
 
     }
+//    public PageResult pageQuery(Integer current, Integer size){
+//        IPage<ResumeAnalysis> page=new Page<>(current,size);
+//        Long userId=UserHolder.getUser().getId();
+//        IPage<ResumeAnalysis> pageResult = lambdaQuery()
+//                .eq(ResumeAnalysis::getUserId, userId)
+//                .orderByDesc(ResumeAnalysis::getCreateTime)
+//                .page(page);
+//        List<ResumeAnalysis> resumeAnalysisList=pageResult.getRecords();
+//        List<ResumePageVO> list= resumeAnalysisList.stream().map(
+//                r->{
+//                    ResumePageVO resumePageVO = BeanUtil.copyProperties(r, ResumePageVO.class);
+//                    return resumePageVO;
+//                }
+//        ).collect(Collectors.toList());
+//
+//     return new PageResult(pageResult.getTotal(),pageResult.getPages(),current,pageResult.getSize(),list);
+//    }
+    public List<ResumeVO> queryResume(){
+        Long userId=UserHolder.getUser().getId();
+        LambdaQueryWrapper<ResumeAnalysis> wrapper=new LambdaQueryWrapper<>();
+        wrapper.eq(ResumeAnalysis::getUserId,userId)
+                .orderByDesc(ResumeAnalysis::getCreateTime);
+         List<ResumeVO> list=list(wrapper).stream()
+                 //加上{} return也必须加上；
+                 .map(r->{return BeanUtil.copyProperties(r,ResumeVO.class);
+                 }).collect(Collectors.toList());
+         return list;
+    }
 
-
+    @Override
+    public void logicalDelete(Long resumeId) {
+        ResumeAnalysis resume=getById(resumeId);
+        if(resume==null){
+            throw new ResumeNotFindException("简历不存在");
+        }
+        removeById(resumeId);//update is_delete=1
+    }
 }
 
 

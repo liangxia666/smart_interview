@@ -56,15 +56,34 @@ public class PromptManager {
     /**
      * 动态构建面试官提示词（替换占位符）
      */
-    public String buildInterviewChatSystemPrompt(String summaryText,String ragContext) {
-        String context = summaryText != null ? summaryText : "暂无简历画像";
+    public String buildInterviewChatSystemPrompt(String summaryText,String ragContext,String category,String difficulty) {
+        String resumeSummary = summaryText != null ? summaryText : "暂无简历画像";
 
         //查到标准答案就组装，没查到就留空
         String ragPrompt= StrUtil.isNotBlank(ragContext)
                 ? "\n【标准参考答案】：\n" + ragContext
                 : "";
-        return interviewChatTemplate.replace("{{summaryText}}", context)
-                .replace("{{ragContext}}",ragPrompt);
+        String categoryPrompt = StrUtil.isNotBlank(category)
+                ? "\n【本次面试方向】：" + category + "\n" +
+                "围绕【" + category + "】展开提问，严格做到以下两点：\n" +
+                "1. 理论深挖：考察【" + category + "】的核心原理、底层机制与高频面试难点。\n" +
+                "2. 项目结合：必须结合上方候选人的《简历画像》中的实际项目，" +
+                "追问他在项目里【" + category + "】的真实落地细节，" +
+                "包括具体实现方案、遇到的问题和解决思路。\n" +
+                "禁止脱离【" + category + "】跑题到其他无关技术领域。"
+                : "";
+        String difficultyPrompt = StrUtil.isNotBlank(difficulty)
+                ? "\n【本次面试难度】：" + difficulty +
+                "，提问深度、术语复杂度和追问力度必须严格匹配该级别。"
+                : "";
+
+
+
+        return interviewChatTemplate
+                .replace("{{summaryText}}", resumeSummary)
+                .replace("{{standardAnswer}}",ragPrompt)
+                .replace("{{difficultyContext}}",difficultyPrompt)
+                .replace("{{categoryContext}}",categoryPrompt);
     }
     public String buildEvaluationPrompt(String aiQuestion,String userAnswer,String standardAnswer){
         String userAnswerFinal = StrUtil.isNotBlank(userAnswer) ? userAnswer : "（候选人未作答）";
