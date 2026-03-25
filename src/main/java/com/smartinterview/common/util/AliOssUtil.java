@@ -8,8 +8,11 @@ import com.smartinterview.common.exception.OssException;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.web.util.UriComponentsBuilder;
 
 import java.io.ByteArrayInputStream;
+import java.io.UnsupportedEncodingException;
+import java.net.URLEncoder;
 
 
 @Data
@@ -30,7 +33,6 @@ public class AliOssUtil {
      * @return
      */
     public String upload(byte[] bytes, String objectName) {
-
         // 创建OSSClient实例。
         OSS ossClient = new OSSClientBuilder().build(endpoint, accessKeyId, accessKeySecret);
 
@@ -50,17 +52,26 @@ public class AliOssUtil {
             }
         }
 
-        //文件访问路径规则 https://BucketName.Endpoint/ObjectName
-        StringBuilder stringBuilder = new StringBuilder("https://");
-        stringBuilder
-                .append(bucketName)
-                .append(".")
-                .append(endpoint)
-                .append("/")
-                .append(objectName);
+        try {
+            //对文件名进行编码，要不浏览器访问url路径会报错
+            String encodedObjectName = URLEncoder.encode(objectName, "UTF-8")
+                    .replace("+", "%20");
+            //文件访问路径规则 https://BucketName.Endpoint/ObjectName
+            StringBuilder stringBuilder = new StringBuilder("https://");
+            stringBuilder
+                    .append(bucketName)
+                    .append(".")
+                    .append(endpoint)
+                    .append("/")
+                    .append(encodedObjectName);
 
-        log.info("文件上传到:{}", stringBuilder.toString());
+            log.info("文件上传到:{}", stringBuilder.toString());
 
-        return stringBuilder.toString();
+            return stringBuilder.toString();
+        } catch (UnsupportedEncodingException e) {
+            throw new RuntimeException(e);
+        }
+
+
     }
 }

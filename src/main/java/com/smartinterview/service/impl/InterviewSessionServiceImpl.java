@@ -16,15 +16,15 @@ import com.smartinterview.common.exception.ResumeNotFindException;
 import com.smartinterview.common.manager.PromptManager;
 import com.smartinterview.common.result.Result;
 import com.smartinterview.common.util.UserHolder;
+import com.smartinterview.dto.ChatDTO;
 import com.smartinterview.dto.StartInterviewDTO;
 import com.smartinterview.entity.ChatMessage;
 import com.smartinterview.entity.InterviewReport;
 import com.smartinterview.entity.InterviewSession;
 import com.smartinterview.entity.ResumeAnalysis;
-import com.smartinterview.service.InterviewReportService;
-import com.smartinterview.service.InterviewSessionService;
+import com.smartinterview.mapper.ChatMessageMapper;
+import com.smartinterview.service.*;
 import com.smartinterview.mapper.InterviewSessionMapper;
-import com.smartinterview.service.SysQuestionService;
 import com.smartinterview.vo.InterviewSessionVO;
 import com.smartinterview.vo.InterviewStartVO;
 import com.smartinterview.vo.InterviewStatsVO;
@@ -55,14 +55,14 @@ public class InterviewSessionServiceImpl extends ServiceImpl<InterviewSessionMap
     @Autowired
     private StringRedisTemplate stringRedisTemplate;
     @Autowired
-    private ChatMessageServiceImpl chatMessageService;
+    private ChatMessageMapper chatMessageMapper;
     @Autowired
-    private AiAnalysisServiceImpl aianalysisService;
+    private AiAnalysisService aianalysisService;
     @Autowired
-    private ResumeAnalysisServiceImpl resumeAnalysisService;
+    private ResumeAnalysisService resumeAnalysisService;
     @Autowired
     private PromptManager promptManager;
-    private static final int MAX_HISTORY_MSG=10;
+    private static final int MAX_HISTORY_MSG=20;
     @Autowired
     private SysQuestionService sysQuestionService;
     @Autowired
@@ -75,7 +75,7 @@ public class InterviewSessionServiceImpl extends ServiceImpl<InterviewSessionMap
         if(resume==null){
             throw new ResumeNotFindException("简历未找到，请重新上传简历");
         }
-        if(resume.getStatus()==null||resume.getStatus()<2){
+        if(resume.getStatus()==null||resume.getStatus()<3){
             throw new ResumeAnalysisException("简历尚未分析，请稍后重试");
         }
         LambdaQueryWrapper<InterviewSession> existWrapper=new LambdaQueryWrapper<>();
@@ -91,7 +91,7 @@ public class InterviewSessionServiceImpl extends ServiceImpl<InterviewSessionMap
         InterviewSession session=InterviewSession.builder()
                 .userId(userId)
                 .difficulty(dto.getDifficulty())
-                .category(dto.getCategory())
+                .jobIntention(dto.getJobIntention())
                 .resumeId(dto.getResumeId())
                 .createTime(LocalDateTime.now())
                 .updateTime(LocalDateTime.now())
@@ -107,13 +107,14 @@ public class InterviewSessionServiceImpl extends ServiceImpl<InterviewSessionMap
     /**
      *  面试对话：SSE 流式返回 AI 回复
      * 由系统提示词+历史会话+当前用户会话共同组成消息集合传到AI生成流式文本
-     * @param sessionId
-     * @param userMessage
+     *
      * @return
      */
     @Override
-    public SseEmitter chat(Long sessionId, String userMessage) {
+    public SseEmitter chat(ChatDTO dto) {
         SseEmitter emitter = new SseEmitter(60000L);
+        Long sessionId=dto.getSessionId();
+        String userMessage=dto.getUserMessage();
         //校验session存在，且未结束
         InterviewSession session=getById(sessionId);
         if(session==null){
@@ -162,8 +163,9 @@ public class InterviewSessionServiceImpl extends ServiceImpl<InterviewSessionMap
         String systemPrompt = promptManager.buildInterviewChatSystemPrompt(
                 summaryText,
                 standerAnswer,
-                session.getCategory(),
-                session.getDifficulty());
+                session.getDifficulty(),
+                session.getJobIntention()
+                );
         //添加系统提示此消息
         messages.add(Message.builder().role(Role.SYSTEM.getValue()).content(systemPrompt).build());
         //添加历史消息
@@ -247,11 +249,11 @@ public class InterviewSessionServiceImpl extends ServiceImpl<InterviewSessionMap
                                .list();
        if(reportList!=null){
           int avgScore=(int) Math.round( reportList.stream()
-                  .mapToInt(r->r.getScore())//转成int流
+                  .mapToInt(r->r.getScore()==null?0:r.getScore())//转成int流
                   .average() //求平均数
                   .orElse(0) //集合为空时，没数据置0
           );
-          session.setTotalScore(avgScore)
+          session.setTotalScore(avgScore);
        }
 
        session.setStatus(2);
@@ -265,7 +267,7 @@ public class InterviewSessionServiceImpl extends ServiceImpl<InterviewSessionMap
         Long userId=UserHolder.getUser().getId();
         LambdaQueryWrapper<InterviewSession> wrapper=new LambdaQueryWrapper<>();
         wrapper.eq(InterviewSession::getUserId,userId)
-                .orderByAsc(InterviewSession::getCreateTime);
+                .orderByDesc(InterviewSession::getCreateTime);
         List<InterviewSessionVO> vo=list(wrapper).stream()
                 .map(r-> BeanUtil.copyProperties(r,InterviewSessionVO.class))
                 .collect(Collectors.toList());
@@ -280,7 +282,7 @@ public class InterviewSessionServiceImpl extends ServiceImpl<InterviewSessionMap
                 .role(role)
                 .createTime(LocalDateTime.now())
                 .build();
-        chatMessageService.save(chatMessage);
+        chatMessageMapper.insert(chatMessage);
         return chatMessage;
     }
     //提取简历摘要

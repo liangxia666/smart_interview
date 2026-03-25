@@ -23,13 +23,13 @@ public class InterviewReportController {
 
     @Operation(summary="生成面试报告")
     @PostMapping("report/{sessionId}")
-    public Result getReport(@PathVariable Long sessionId){
+    public Result getReport(@PathVariable(value="sessionId") Long sessionId){
         log.info("生成面试报告：{}",sessionId);
         InterviewReportVO interviewReportVO = interviewReportService.buildReport(sessionId);
         return Result.success(interviewReportVO);
     }
     @Operation(summary="导出报告")
-    @GetMapping("/{sessionId}/export")
+    @GetMapping("/export/{sessionId}")
     public void exportReport(@PathVariable(value="sessionId")Long sessionId, HttpServletResponse response){
         log.info("到处面试报告：{}",sessionId);
         interviewReportService.exportReport(sessionId,response);

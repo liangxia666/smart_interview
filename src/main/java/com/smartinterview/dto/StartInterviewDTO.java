@@ -6,6 +6,6 @@ import lombok.Data;
 public class StartInterviewDTO {
     private String title;
     private String difficulty;
-    private String category;
+    private String jobIntention;
     private Long resumeId;
 }

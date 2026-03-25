@@ -8,7 +8,7 @@ import java.util.List;
 
 public interface AiAnalysisService {
      Flowable<GenerationResult> streamAnalyzeResume(String rawText);
-
+     String analyzeResumeScore(String rawText);
      Flowable<GenerationResult> streamChat(List<Message> messages);
      String evaluateAnswer (String aiQuestion,String userAnswer,String standerAnswer);
 }

@@ -8,6 +8,7 @@ import com.smartinterview.common.util.UserHolder;
 import com.smartinterview.config.RabbitConfig;
 import com.smartinterview.entity.ResumeAnalysis;
 import com.smartinterview.service.ResumeAnalysisService;
+import com.smartinterview.vo.ResumeDetailVO;
 import com.smartinterview.vo.ResumeUploadVO;
 import com.smartinterview.vo.ResumeVO;
 import io.swagger.v3.oas.annotations.Operation;
@@ -37,7 +38,7 @@ public class ResumeController {
     @PostMapping("upload")
     public Result uploadResume(@RequestParam("file") MultipartFile file,
                                @RequestParam(value = "intention", required = false,
-                                       defaultValue = "Java软件开发") String intention) {
+                                       defaultValue = "Java后端开发") String intention) {
         log.info("开始上传简历：{}",file.getOriginalFilename());
         ResumeUploadVO upload = resumeAnalysisService.upload(file, intention);
         return Result.success(upload.getResumeId());
@@ -48,11 +49,11 @@ public class ResumeController {
      * @param resumeId
      * @return
      */
-    @Operation(summary="发送简历AI获取流式回复的分析")
+    @Operation(summary="简历AI流式分析（前台轨）")
     //produces返回给前端为流式文本数据
     @GetMapping(value="/ai/stream/{resumeId}",produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter streamAiAnalysis(@PathVariable("resumeId") Long resumeId, HttpServletResponse response){
-        //spring转字节时采用UTF-8
+        //服务器转字节时采用UTF-8
         response.setCharacterEncoding("UTF-8");
         //告知前端传送流式文本数据，采用UTF--8编码
        response.setContentType("text/event-stream;charset=UTF-8");
@@ -60,7 +61,14 @@ public class ResumeController {
         return resumeAnalysisService.streamAiAnalysis(resumeId);
 
     }
-    @Operation(summary="查询订单状态")
+    @Operation(summary="查询简历评分和摘要")
+    @GetMapping("detail/{resumeId}")
+    public  Result queryDetail(@PathVariable Long resumeId){
+        ResumeDetailVO resumeDetail = resumeAnalysisService.getResumeDetail(resumeId);
+        return Result.success(resumeDetail);
+
+    }
+    @Operation(summary="查询简历状态")
     @GetMapping("status/{resumeId}")
     public Result<Integer> getResumeStatus(@PathVariable("resumeId")Long resumeId){
         ResumeAnalysis resume = resumeAnalysisService.getById(resumeId);

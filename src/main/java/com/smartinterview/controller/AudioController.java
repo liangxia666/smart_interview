@@ -2,6 +2,7 @@ package com.smartinterview.controller;
 
 import com.smartinterview.common.result.Result;
 
+import com.smartinterview.service.AudioService;
 import com.smartinterview.service.impl.AudioServiceImpl;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -16,7 +17,7 @@ import java.io.IOException;
 @RequestMapping("audio")
 public class AudioController {
     @Autowired
-    private AudioServiceImpl audioService;
+    private AudioService audioService;
     @PostMapping("/recognise")
     public Result<String> recognizeAudio(@RequestParam("audio")MultipartFile file){
         if(file.isEmpty()){

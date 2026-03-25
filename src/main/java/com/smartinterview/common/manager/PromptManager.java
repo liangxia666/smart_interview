@@ -21,13 +21,17 @@ public class PromptManager {
     @Value("classpath:prompts/resume-analysis-system.st")
     private Resource resumeAnalysisResource;
 
+    @Value("classpath:prompts/resume-score-system.st")
+    private Resource resumeScoreResource;
     @Value("classpath:prompts/interview-chat-system.st")
     private Resource interviewChatResource;
     @Value("classpath:prompts/evaluate-answer.st")
     private Resource evaluateAnswerResource;
 
+
     // 缓存在内存中的字符串，避免每次请求都去读文件
     private String resumeAnalysisTemplate;
+    private String resumeScoreTemplate;
     private String interviewChatTemplate;
     private String evaluateAnswerTemplate;
     /**
@@ -38,6 +42,7 @@ public class PromptManager {
         try {
             //将文件输入流读取成字符串，指定UTF-8编码
             resumeAnalysisTemplate = IoUtil.read(resumeAnalysisResource.getInputStream(), StandardCharsets.UTF_8);
+            resumeScoreTemplate    = IoUtil.read(resumeScoreResource.getInputStream(), StandardCharsets.UTF_8);
             interviewChatTemplate = IoUtil.read(interviewChatResource.getInputStream(), StandardCharsets.UTF_8);
             evaluateAnswerTemplate=IoUtil.read(evaluateAnswerResource.getInputStream(),StandardCharsets.UTF_8);
             log.info("AI Prompt 模板加载完成！");
@@ -52,38 +57,40 @@ public class PromptManager {
     public String getResumeAnalysisSystemPrompt() {
         return resumeAnalysisTemplate;
     }
+    public String getResumeScoreSystemPrompt() {
+        return resumeScoreTemplate;
+    }
+
 
     /**
      * 动态构建面试官提示词（替换占位符）
      */
-    public String buildInterviewChatSystemPrompt(String summaryText,String ragContext,String category,String difficulty) {
+    public String buildInterviewChatSystemPrompt(String summaryText,
+                                                 String ragContext,
+                                                 String difficulty,
+                                                 String jobIntention) {
         String resumeSummary = summaryText != null ? summaryText : "暂无简历画像";
 
         //查到标准答案就组装，没查到就留空
         String ragPrompt= StrUtil.isNotBlank(ragContext)
                 ? "\n【标准参考答案】：\n" + ragContext
                 : "";
-        String categoryPrompt = StrUtil.isNotBlank(category)
-                ? "\n【本次面试方向】：" + category + "\n" +
-                "围绕【" + category + "】展开提问，严格做到以下两点：\n" +
-                "1. 理论深挖：考察【" + category + "】的核心原理、底层机制与高频面试难点。\n" +
-                "2. 项目结合：必须结合上方候选人的《简历画像》中的实际项目，" +
-                "追问他在项目里【" + category + "】的真实落地细节，" +
-                "包括具体实现方案、遇到的问题和解决思路。\n" +
-                "禁止脱离【" + category + "】跑题到其他无关技术领域。"
-                : "";
         String difficultyPrompt = StrUtil.isNotBlank(difficulty)
                 ? "\n【本次面试难度】：" + difficulty +
                 "，提问深度、术语复杂度和追问力度必须严格匹配该级别。"
                 : "";
-
+       String intentionPrompt = StrUtil.isNotBlank(jobIntention)
+                ? "\n【候选人求职意向】：" + jobIntention +
+                "，你的提问方向和深度必须严格匹配该岗位的技术要求，" +
+                "不相关的技术领域不要涉及。"
+                : "";
 
 
         return interviewChatTemplate
                 .replace("{{summaryText}}", resumeSummary)
                 .replace("{{standardAnswer}}",ragPrompt)
                 .replace("{{difficultyContext}}",difficultyPrompt)
-                .replace("{{categoryContext}}",categoryPrompt);
+                .replace("{{jobIntention}}",intentionPrompt);
     }
     public String buildEvaluationPrompt(String aiQuestion,String userAnswer,String standardAnswer){
         String userAnswerFinal = StrUtil.isNotBlank(userAnswer) ? userAnswer : "（候选人未作答）";

@@ -34,6 +34,7 @@ public class AiAnalysisServiceImpl implements AiAnalysisService {
 
     /**
      * 分析简历
+     *  前台轨：流式分析简历，只生成优势/不足/建议
      * @param rawText
      * @return
      */
@@ -41,7 +42,7 @@ public class AiAnalysisServiceImpl implements AiAnalysisService {
         try {
             //gen对象用于跟通义千问通信
             Generation gen=new Generation();
-            //定义 System Prompt（系统指令）：给 AI 设定“身份和工作规则
+            //定义 System Prompt（系统指令）：给 AI 设定“身份和工作规则只生成优势/不足/建议
             String systemPrompt =promptManager.getResumeAnalysisSystemPrompt();
             //构建系统消息
             Message systemMsg=Message.builder()
@@ -60,15 +61,51 @@ public class AiAnalysisServiceImpl implements AiAnalysisService {
                     .messages(Arrays.asList(systemMsg,userMsg))
                     //指定AI的返回结果为结构化消息
                     .resultFormat(GenerationParam.ResultFormat.MESSAGE)
-                    //开启增量输出,每次只返回最新生成的数据
+                    //开启增量输出,每次只返回最新生成的字，false的话每次从头到尾返回所有数据
                     .incrementalOutput(true)
                     .build();
-            log.info("开始通义千问大模型SSE流式生成中...");
+            log.info("前台轨：简历分析SSE流式生成中...");
+            //streamCall流式输出
             return gen.streamCall(param);
-        }  catch (Exception e) {
-            log.error("调用通义千问大模型分析简历失败",e);
-            //自定义异常类
+        } catch (Exception e) {
+            log.error("简历流式分析失败", e);
             throw new AiServiceException("AI 智能分析引擎开小差了，请稍后重试");
+        }
+    }
+    /**
+     * 后台轨：同步调用，强制输出 JSON（评分 + 项目摘要 ）
+     * 由 @Async 异步线程调用，不阻塞主流程
+     *
+     * @param rawText 简历原始文本
+     * @return 严格 JSON 字符串，格式：{"score":{...},"summary":"...","jobIntention":"..."}
+     */
+    public String analyzeResumeScore(String rawText) {
+        try {
+            //生成评分加项目摘要，直接返回字符串
+            Generation gen = new Generation();
+            Message systemMsg = Message.builder()
+                    .role(Role.SYSTEM.getValue())
+                    .content(promptManager.getResumeScoreSystemPrompt())
+                    .build();
+            Message userMsg = Message.builder()
+                    .role(Role.USER.getValue())
+                    .content("这是候选人的简历纯文本，请按要求输出JSON：" + rawText)
+                    .build();
+            GenerationParam param = GenerationParam.builder()
+                    .apiKey(apiKey)
+                    .model("qwen-turbo")   // 后台轨用更强的模型，精准度更高
+                    .messages(Arrays.asList(systemMsg, userMsg))
+                    .resultFormat(GenerationParam.ResultFormat.MESSAGE)
+                    .build();
+            log.info("后台轨：简历评分同步调用中...");
+            //call同步阻塞等待AI生成结果，streamCall流式输出
+            GenerationResult result = gen.call(param);
+            return result.getOutput().getChoices().get(0).getMessage().getContent();
+        } catch (Exception e) {
+            log.error("后台轨简历评分失败", e);
+            // 返回降级默认值，不影响主流程
+            return "{\"score\":{\"total\":0,\"technical\":0,\"project\":0,\"clarity\":0,\"potential\":0}," +
+                    "\"summary\":\"暂无摘要\"}";
         }
     }
 

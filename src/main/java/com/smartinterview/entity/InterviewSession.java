@@ -27,7 +27,7 @@ public class InterviewSession {
 
     private Integer status;
 
-    private String category;
+    private String jobIntention;
 
     private String difficulty;
 

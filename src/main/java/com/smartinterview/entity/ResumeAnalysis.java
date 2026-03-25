@@ -25,8 +25,6 @@ public class ResumeAnalysis {
 
     private String fileUrl;
 
-    private String jobIntention;
-
     private String originalText;
 
     private Integer status;

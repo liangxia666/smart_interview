@@ -5,6 +5,7 @@ import com.smartinterview.common.exception.InterviewSessionException;
 import com.smartinterview.common.util.UserHolder;
 import com.smartinterview.entity.ChatMessage;
 import com.smartinterview.entity.InterviewSession;
+import com.smartinterview.mapper.InterviewSessionMapper;
 import com.smartinterview.service.ChatMessageService;
 import com.smartinterview.mapper.ChatMessageMapper;
 import com.smartinterview.service.InterviewSessionService;
@@ -22,9 +23,9 @@ import java.util.List;
 public class ChatMessageServiceImpl extends ServiceImpl<ChatMessageMapper, ChatMessage>
     implements ChatMessageService{
     @Autowired
-    private InterviewSessionService interviewSessionService;
+    private InterviewSessionMapper interviewSessionMapper;
     public List<ChatMessage> queryBySessionId(Long sessionId){
-        InterviewSession session = interviewSessionService.getById(sessionId);
+        InterviewSession session = interviewSessionMapper.selectById(sessionId);
         if(session==null){
            throw new InterviewSessionException("面试不存在");
        }

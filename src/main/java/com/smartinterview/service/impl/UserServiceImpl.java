@@ -101,7 +101,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
        // Map<String,Object> map= BeanUtil.beanToMap(user);
         //只存nickname id,就行
         Map<String,String> map=new HashMap<>();
-        map.put("userId",user.getId().toString());
+        map.put("id",user.getId().toString());
         map.put("nickname",user.getNickname());
         redisTemplate.opsForHash().putAll(RedisConstants.LOGIN_USER+token,map);
         redisTemplate.expire(RedisConstants.LOGIN_USER+token,RedisConstants.LOGIN_TOKEN_TTL,TimeUnit.MINUTES);

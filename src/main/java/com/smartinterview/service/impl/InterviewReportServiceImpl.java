@@ -5,6 +5,7 @@ import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.itextpdf.io.font.PdfEncodings;
 import com.itextpdf.kernel.colors.ColorConstants;
 import com.itextpdf.kernel.colors.DeviceRgb;
 import com.itextpdf.kernel.font.PdfFont;
@@ -32,14 +33,20 @@ import com.smartinterview.vo.InterviewReportVO;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StreamUtils;
 
+import java.io.*;
 import java.net.URLEncoder;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.stream.Collectors;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
 
 @Service
 @Slf4j
@@ -106,12 +113,13 @@ public class InterviewReportServiceImpl extends ServiceImpl<InterviewReportMappe
         if(session==null){
             throw new InterviewSessionException("面试记录不存在");
         }
-        if(session.getStatus().equals(Integer.valueOf(0))){
-            throw new InterviewSessionException("面试还未完成，请先完成面试");
+        if(!session.getStatus().equals(Integer.valueOf(2))){
+            throw new InterviewSessionException("面试未开始或还未完成，请先完成面试");
         }
         //获取报告内容
         LambdaQueryWrapper<InterviewReport> wrapper=new LambdaQueryWrapper<>();
         wrapper.eq(InterviewReport::getSessionId,sessionId)
+                .ne(InterviewReport::getQuestionText, "") //过滤掉第一条问题记录 where 字段不为空
                 .orderByAsc(InterviewReport::getId);
         List<InterviewReport> list=list(wrapper);
         InterviewReportVO interviewReportVO=new InterviewReportVO();
@@ -166,43 +174,30 @@ public class InterviewReportServiceImpl extends ServiceImpl<InterviewReportMappe
 
         // 2. 计算汇总数据
         int totalScore =  (int) Math.round(
-                list.stream().mapToInt(r -> r.getScore())
+                list.stream().mapToInt(r -> r.getScore()==null?0:r.getScore())
                         .average().orElse(0));
         //计算正确的数量
         long correctCount=list.stream()
                 .filter(r->Boolean.TRUE.equals(r.getIsCorrect())).count();
         //计算正确率 %.1f%%相当于2.5%
         String correctRate = String.format("%.1f%%", correctCount * 100.0 / list.size());
-
-        try {
-            // 3. 设置响应头，告诉浏览器这是一个 PDF 下载
-            response.setContentType("application/pdf");
-            //设置编码
-            response.setCharacterEncoding("UTF-8");
-            //URLEncode编码设置文件名防止中文乱码
-            String fileName = URLEncoder.encode(
-                    session.getTitle() + "-面试报告.pdf", "UTF-8");
-            //设置响应头告知浏览器，以附件的形式下载
-            response.setHeader("Content-Disposition",
-                    "attachment; filename=\"" + fileName + "\"");
-
-            // 4. 将 PDF 写入响应输出流，直接返回给前端
-            PdfWriter writer = new PdfWriter(response.getOutputStream());
+       // 创建一个内存里的字节数组输出流
+        try(ByteArrayOutputStream baos = new ByteArrayOutputStream()){
+            //创建一个个PDF 书写器，PDF里面的内容写入内存输出流
+            PdfWriter writer = new PdfWriter(baos);
             //创建pdf文档对象
             PdfDocument pdf = new PdfDocument(writer);
-            //创建文本内容的容器
+            //创建文本内容容器
             Document document = new Document(pdf, PageSize.A4);
             //设置边距
             document.setMargins(40, 50, 40, 50);
 
-            // 5. 加载中文字体（iText7 内置宋体）
-            PdfFont chineseFont = PdfFontFactory.createFont(
-                    "STSong-Light", "UniGB-UCS2-H",
-                    PdfFontFactory.EmbeddingStrategy.PREFER_EMBEDDED);
-            PdfFont boldFont = PdfFontFactory.createFont(
-                    "STSong-Light", "UniGB-UCS2-H",
-                    PdfFontFactory.EmbeddingStrategy.PREFER_EMBEDDED);
 
+
+            // 使用 ClassPathResource 加载，兼容 Jar 包部署环境
+
+            PdfFont chineseFont = loadTtcFont("fonts/msyh.ttc", 0);
+            PdfFont boldFont = loadTtcFont("fonts/msyhbd.ttc", 0);
             // ── 标题 ──
             document.add(new Paragraph(session.getTitle() + " · 面试报告")
                     .setFont(boldFont)//字体
@@ -284,7 +279,7 @@ public class InterviewReportServiceImpl extends ServiceImpl<InterviewReportMappe
                                 .setFont(boldFont)
                                 .setFontSize(12)
                                 .setBold())
-                        .add(new Text(correct ? " ✓ 正确 " : " ✗ 错误 ")
+                        .add(new Text(correct ? "正确 " : "错误 ")
                                 .setFont(chineseFont)
                                 .setFontSize(10)
                                 .setFontColor(ColorConstants.WHITE)
@@ -341,11 +336,56 @@ public class InterviewReportServiceImpl extends ServiceImpl<InterviewReportMappe
                     .setMarginTop(8));
 
             document.close();
+            // 只有到这一步没报错，才设置 header 并写回浏览器
+            //将pdf转成字节数组
+            byte[] content = baos.toByteArray();
+            //设置响应头，告知前端是pdf
+            response.setContentType("application/pdf");
+            // 文件名处理：加上 .pdf 后缀，并处理空格
+            String fileName = URLEncoder.encode(session.getTitle() + "-面试报告.pdf", "UTF-8").replaceAll("\\+", "%20");
+           // 告诉浏览器：弹出下载框，不要直接打开，这是国际标准的下载格式
+            response.setHeader("Content-Disposition", "attachment; filename*=UTF-8''" + fileName);
+           //告诉浏览器文件大小，显示下载进度
+            response.setContentLength(content.length);
+            //将pdf写给响应对象的输出流
+            response.getOutputStream().write(content);
+            //开始下载
+            response.getOutputStream().flush();
             log.info("面试报告 PDF 导出成功，sessionId={}", sessionId);
 
         } catch (Exception e) {
             log.error("PDF 导出失败，sessionId={}", sessionId, e);
             throw new RuntimeException("PDF 导出失败，请重试");
+        }
+
+    }
+
+
+    /**
+     * 专门用于在 Spring Boot 环境下加载 TTC 字体
+     */
+    private PdfFont loadTtcFont(String classPath, int index) throws IOException {
+        // 1. 获取 resources 下的字体输入流
+        try (InputStream is = new ClassPathResource(classPath).getInputStream()) {
+            // 2. 在服务器操作系统生成一个临时文件
+            //因为 iText 对 TTC 字体集合 的支持有一个限制：
+            //必须用 文件系统的绝对路径 + , 索引 才能加载
+            File tempFile = File.createTempFile("temp_font_", ".ttc");
+            tempFile.deleteOnExit(); // JVM 停止时自动删除，防止占用磁盘
+
+            // 3. 将字体文件流写入临时文件   ，临时文件就有字体数据
+            try (FileOutputStream fos = new FileOutputStream(tempFile)) {
+                StreamUtils.copy(is, fos);
+            }
+
+            // 4. 让 iText 通过绝对路径读取，并完美支持 ",0" 语法
+            String fontPathWithIndex = tempFile.getAbsolutePath() + "," + index;
+            //返回创建的字体
+            return PdfFontFactory.createFont(
+                    fontPathWithIndex,  //字体格式 传入字符串的话，会自动截取  路径+0，如果传字节数组不行
+                    PdfEncodings.IDENTITY_H, //创建Unicode编码
+                    PdfFontFactory.EmbeddingStrategy.PREFER_EMBEDDED //把字体嵌入PDF
+            );
         }
     }
 

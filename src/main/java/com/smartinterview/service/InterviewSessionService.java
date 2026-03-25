@@ -1,5 +1,6 @@
 package com.smartinterview.service;
 
+import com.smartinterview.dto.ChatDTO;
 import com.smartinterview.dto.StartInterviewDTO;
 import com.smartinterview.entity.InterviewSession;
 import com.baomidou.mybatisplus.extension.service.IService;
@@ -17,7 +18,7 @@ import java.util.List;
 */
 public interface InterviewSessionService extends IService<InterviewSession> {
 
-    SseEmitter chat(Long sessionId,String userMessage);
+    SseEmitter chat(ChatDTO dto);
 
     void finishInterview(Long sessionId);
 

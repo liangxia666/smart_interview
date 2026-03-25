@@ -1,6 +1,7 @@
 package com.smartinterview.controller;
 
 import com.smartinterview.common.result.Result;
+import com.smartinterview.dto.ChatDTO;
 import com.smartinterview.dto.StartInterviewDTO;
 import com.smartinterview.service.InterviewSessionService;
 import com.smartinterview.vo.InterviewSessionVO;
@@ -65,16 +66,15 @@ public class InterviewSessionController {
      * 每个 chunk 是 AI 回复的片段，最后一条为 "DONE" 表示本轮结束
      */
 
-    @Operation(summary = "发送聊天消息获取AI流式回复")
+    @Operation(summary = "发送面试消息获取AI流式回复")
     @PostMapping(value = "chat", produces = org.springframework.http.MediaType.TEXT_EVENT_STREAM_VALUE)
-    public SseEmitter chat(@RequestParam Long sessionId,
-                           @RequestParam String userMessage,
+    public SseEmitter chat(@RequestBody ChatDTO dto,
                            HttpServletResponse httpServletResponse) {
         //设置服务端将响应的内容转为字节流时的格式
         httpServletResponse.setCharacterEncoding("UTF-8");
         //告知客户端响应体的编码格式
         httpServletResponse.setContentType("text/event-stream;charset=UTF-8");
-        return interviewSessionService.chat(sessionId, userMessage);
+        return interviewSessionService.chat(dto);
 
     }
 

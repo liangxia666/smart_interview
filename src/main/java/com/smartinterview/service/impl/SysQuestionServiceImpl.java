@@ -25,7 +25,9 @@ public class SysQuestionServiceImpl extends ServiceImpl<SysQuestionMapper, SysQu
         String safeKeyword = userMessage.replace("'","");
         QueryWrapper<SysQuestion> wrapper=new QueryWrapper<>();
         //last拼接到sql语句最后，match全文索引匹配，默认自然语言模式
-        wrapper.last("where match(question,answer) against('"+safeKeyword+"'in natural language mode");
+
+        wrapper.apply(" match(question,answer) against ({0} in natural language mode) ",safeKeyword);
+        wrapper.last("limit 1");
         SysQuestion matchedQuestion=getOne(wrapper);
         if(matchedQuestion!=null){
             return "【原题】：" + matchedQuestion.getQuestion() + "\n【标准答案】：" + matchedQuestion.getAnswer();

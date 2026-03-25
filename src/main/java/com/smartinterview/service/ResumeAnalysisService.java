@@ -3,6 +3,7 @@ package com.smartinterview.service;
 import com.smartinterview.common.result.PageResult;
 import com.smartinterview.entity.ResumeAnalysis;
 import com.baomidou.mybatisplus.extension.service.IService;
+import com.smartinterview.vo.ResumeDetailVO;
 import com.smartinterview.vo.ResumeUploadVO;
 import com.smartinterview.vo.ResumeVO;
 import org.springframework.web.multipart.MultipartFile;
@@ -24,6 +25,9 @@ public interface ResumeAnalysisService extends IService<ResumeAnalysis> {
     List<ResumeVO> queryResume();
 
     void logicalDelete(Long resumeId);
+
+    ResumeDetailVO getResumeDetail(Long resumeId);
+    void asyncGenerateScore(Long resumeId,String rawText);
 
 
     // PageResult pageQuery(Integer current, Integer size);

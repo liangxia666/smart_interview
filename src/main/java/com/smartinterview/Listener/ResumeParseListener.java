@@ -19,8 +19,7 @@ public class ResumeParseListener {
     private ResumeAnalysisService resumeAnalysisService;
     @Autowired
     private ResumeParser resumeParser;
-    @Autowired
-    private AiAnalysisServiceImpl aiAnalysisServiceImpl;
+
     @RabbitListener(queues = RabbitConfig.RESUME_PARSE_QUEUE)
     public void handlerResumeParse(Long resumeId) {
         log.info("消费者开始处理简历解析任务，简历ID: {}", resumeId);
