@@ -31,8 +31,20 @@ public class RefreshInterceptor implements HandlerInterceptor {
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
 
+        if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
+            return true;
+        }
 
-        String token=request.getHeader("Authorization");
+        // 2. 获取 Token（尝试大写和小写，增强兼容性）
+        String token = request.getHeader("Authorization");
+        if (token == null) {
+            token = request.getHeader("authorization");
+        }
+        //SSE: 2. 如果 Header 没有，尝试从 URL 参数获取 (专门给 SSE 用)
+        if (token == null) {
+            token = request.getParameter("token");
+        }
+
         if(token==null){
             return true;
         }

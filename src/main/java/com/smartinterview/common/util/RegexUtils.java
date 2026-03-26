@@ -8,18 +8,20 @@ import cn.hutool.core.util.StrUtil;
  */
 public class RegexUtils {
     /**
-     * 是否是无效手机格式
+     * 是否是无效手机格式  无效
      * @param phone 要校验的手机号
      * @return true:符合，false：不符合
      */
     public static boolean isPhoneInvalid(String phone){
         return mismatch(phone, RegexPatterns.PHONE_REGEX);
     }
+    public static boolean isPasswordInvalid(String password){return mismatch(password,RegexPatterns.PASSWORD_REGEX);}
     /**
      * 是否是无效邮箱格式
      * @param email 要校验的邮箱
      * @return true:符合，false：不符合
      */
+
     public static boolean isEmailInvalid(String email){
         return mismatch(email, RegexPatterns.EMAIL_REGEX);
     }

@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.*;
 @Slf4j
 @RestController
 @RequestMapping("interview")
-@Tag(name="模拟面试中心")
+@Tag(name="面试报告模块")
 public class InterviewReportController {
 
     @Autowired

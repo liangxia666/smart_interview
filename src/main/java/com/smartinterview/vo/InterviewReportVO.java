@@ -1,10 +1,13 @@
 package com.smartinterview.vo;
 
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import lombok.Data;
 import java.util.List;
 
 @Data
 public class InterviewReportVO {
+    @JsonSerialize(using = ToStringSerializer.class)
     private Long sessionId;
     private Integer totalScore;    // AVG(score) 取整
     private Integer questionCount; // 总题数

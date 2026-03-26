@@ -12,6 +12,7 @@ import com.smartinterview.vo.ResumeDetailVO;
 import com.smartinterview.vo.ResumeUploadVO;
 import com.smartinterview.vo.ResumeVO;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
@@ -29,6 +30,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("resume")
 @Slf4j
+@Tag(name="简历模块")
 public class ResumeController {
     @Autowired
     private ResumeAnalysisService resumeAnalysisService;
@@ -41,7 +43,7 @@ public class ResumeController {
                                        defaultValue = "Java后端开发") String intention) {
         log.info("开始上传简历：{}",file.getOriginalFilename());
         ResumeUploadVO upload = resumeAnalysisService.upload(file, intention);
-        return Result.success(upload.getResumeId());
+        return Result.success(upload);
     }
 
     /**

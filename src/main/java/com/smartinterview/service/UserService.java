@@ -1,8 +1,9 @@
 package com.smartinterview.service;
 
-import com.smartinterview.dto.LoginDTO;
+import com.smartinterview.dto.CodeLoginDTO;
+import com.smartinterview.dto.PasswordLoginDTO;
+import com.smartinterview.dto.RegisterDTO;
 import com.smartinterview.dto.UpdateUserDTO;
-import com.smartinterview.dto.UserDTO;
 import com.smartinterview.entity.User;
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.smartinterview.vo.UserVO;
@@ -16,9 +17,12 @@ import org.springframework.web.multipart.MultipartFile;
 */
 public interface UserService extends IService<User> {
 
-    void sendMessage(String phone);
+    String sendMessage(String phone);
+    void register(RegisterDTO registerDTO);
 
-    String login(LoginDTO loginDTO);
+    String codeLogin(CodeLoginDTO codeLoginDTO);
+    String passwordLogin(PasswordLoginDTO passwordLoginDTO);
+
 
     void logout(String token);
 
@@ -27,4 +31,7 @@ public interface UserService extends IService<User> {
     void updateUser(UpdateUserDTO userDTO, HttpServletRequest request);
 
     UserVO queryUser();
+
+
+
 }

@@ -1,34 +1,19 @@
 package com.smartinterview.controller;
 
-import cn.hutool.core.bean.BeanUtil;
-import cn.hutool.core.util.RandomUtil;
-import com.smartinterview.common.constants.RedisConstants;
 import com.smartinterview.common.result.Result;
-import com.smartinterview.common.util.AliOssUtil;
-import com.smartinterview.common.util.RegexUtils;
-import com.smartinterview.common.util.UserHolder;
-import com.smartinterview.dto.LoginDTO;
+import com.smartinterview.dto.CodeLoginDTO;
+import com.smartinterview.dto.PasswordLoginDTO;
+import com.smartinterview.dto.RegisterDTO;
 import com.smartinterview.dto.UpdateUserDTO;
-import com.smartinterview.dto.UserDTO;
-import com.smartinterview.entity.User;
 import com.smartinterview.service.UserService;
 import com.smartinterview.vo.UserVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import io.swagger.v3.oas.annotations.tags.Tags;
-import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.coyote.Request;
-import org.apache.ibatis.annotations.Update;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
-
-import java.io.IOException;
-import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
 @RestController
 @Slf4j
@@ -41,17 +26,29 @@ public class UserController {
     @Operation(summary="发送验证码")
     @PostMapping("code")
     public Result sendCode(@RequestParam("phone") String phone){
-         userService.sendMessage(phone);
-        return Result.success();
+        String code= userService.sendMessage(phone);
+        return Result.success(code);
 
     }
-    @Operation(summary="用户登录")
-    @PostMapping("login")
-    public Result login(@RequestBody LoginDTO loginDTO){
-        String token = userService.login(loginDTO);
+    @Operation(summary="验证码登录")
+    @PostMapping("code/login")
+    public Result CodeLogin(@RequestBody CodeLoginDTO codeLoginDTO){
+        String token = userService.codeLogin(codeLoginDTO);
+        return Result.success(token);
+    }
+    @Operation(summary="密码登录")
+    @PostMapping("password/login")
+    public Result passwordLogin(@RequestBody PasswordLoginDTO passwordLoginDTO){
+        String token=userService.passwordLogin(passwordLoginDTO);
         return Result.success(token);
     }
 
+    @Operation(summary="用户注册")
+    @PostMapping("register")
+    public  Result register(@RequestBody RegisterDTO registerDTO){
+        userService.register(registerDTO);
+        return Result.success();
+    }
     @Operation(summary="用户退出")
     @PostMapping("logout")
     public Result logout(HttpServletRequest request){

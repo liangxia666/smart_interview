@@ -2,10 +2,8 @@ package com.smartinterview.dto;
 
 import lombok.Data;
 
-
 @Data
-public class LoginDTO {
-    private String phone;
-    private String code;
+public class PasswordLoginDTO {
     private String password;
+    private String phone;
 }

@@ -1,5 +1,7 @@
 package com.smartinterview.vo;
 
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -13,6 +15,7 @@ import java.time.LocalDateTime;
 @Builder
 public class InterviewSessionVO {
     // SessionListVO
+    @JsonSerialize(using = ToStringSerializer.class)
     private Long id;
     private String title;         // 面试标题
     private String difficulty;    // 难度

@@ -2,15 +2,13 @@ package com.smartinterview.service.impl;
 
 import cn.hutool.core.lang.UUID;
 import cn.hutool.core.util.RandomUtil;
+import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.smartinterview.common.constants.RedisConstants;
-import com.smartinterview.common.exception.AvatarException;
-import com.smartinterview.common.exception.CodeException;
-import com.smartinterview.common.exception.PhoneException;
+import com.smartinterview.common.exception.*;
+import com.smartinterview.common.result.Result;
 import com.smartinterview.common.util.*;
-import com.smartinterview.dto.LoginDTO;
-import com.smartinterview.dto.UpdateUserDTO;
-import com.smartinterview.dto.UserDTO;
+import com.smartinterview.dto.*;
 import com.smartinterview.entity.User;
 import com.smartinterview.service.UserService;
 import com.smartinterview.mapper.UserMapper;
@@ -24,6 +22,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -56,7 +55,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
      * @param phone
      */
     @Override
-    public void sendMessage(String phone) {
+    public String sendMessage(String phone) {
 
 
         //无效返回true
@@ -75,47 +74,101 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
         }
         redisTemplate.opsForValue().set(codeKey,s,RedisConstants.LOGIN_CODE_TTL, TimeUnit.MINUTES);
         log.info("发送验证码成功：{}",s);
+        return s;
 
+    }
+    public void register(RegisterDTO dto){
+        String phone=dto.getPhone();
+        Object o= redisTemplate.opsForValue().get(RedisConstants.LOGIN_CODE_KEY+phone);
+        if(o==null){
+            throw new CodeException("验证码已过期");
+        }
+
+        if(RegexUtils.isPhoneInvalid(phone)){
+            throw new PhoneException("手机号格式错误");
+        }
+        User user = query().eq("phone", phone).one();
+        if(user!=null){
+            throw new RegisterException("账号已经存在");
+        }
+
+        String code = String.valueOf(o);
+        if(!code.equals(dto.getCode())){
+            throw new CodeException("验证码错误");
+        }
+        String password=dto.getPassword();
+        if (RegexUtils.isPasswordInvalid(password)) {
+            throw new LoginException("密码格式有误");
+        }
+        User u=User.builder()
+                .phone(phone)
+                .nickname(RedisConstants.USER_NICK_NAME+RandomUtil.randomString(10))
+                .createTime(LocalDateTime.now())
+                .password(password)
+                .avatar(DEFAULT_AVATAR)
+                .build();
+        save(u);
     }
 
     @Override
-    public String login(LoginDTO loginDTO) {
-        String phone=loginDTO.getPhone();
+    public String codeLogin(CodeLoginDTO codeLoginDTO) {
+        String phone= codeLoginDTO.getPhone();
         if(RegexUtils.isPhoneInvalid(phone)){
           throw new PhoneException("手机号格式错误");
         }
+        User user=query().eq("phone", codeLoginDTO.getPhone()).one();
+        if(user==null){
+            throw new LoginException("账号不存在");
+        }
         Object o= redisTemplate.opsForValue().get(RedisConstants.LOGIN_CODE_KEY+phone);
+        if(o==null){
+            throw new CodeException("验证码已过期");
+        }
         String code = String.valueOf(o);
-        if(code==null||!code.equals(loginDTO.getCode())){
+        if(!code.equals(codeLoginDTO.getCode())){
             throw new CodeException("验证码错误");
         }
-        User user=query().eq("phone",loginDTO.getPhone()).one();
-        if(user==null){
-          user=  createUser(phone);
+
+        String token=getToken(user);
+        return token;
+
+    }
+    public String passwordLogin(PasswordLoginDTO dto){
+        String phone= dto.getPhone();
+        if(RegexUtils.isPhoneInvalid(phone)){
+            throw new PhoneException("手机号格式错误");
         }
+        String password=dto.getPassword();
+        if (RegexUtils.isPasswordInvalid(password)) {
+            throw new LoginException("密码格式有误");
+        }
+        User user = query().eq("phone", dto.getPhone()).one();
+        if(user==null){
+            throw new LoginException("用户不存在，请先注册");
+        }
+        if(!user.getPassword().equals(dto.getPassword())){
+            throw new LoginException("密码错误");
+        }
+        String token=getToken(user);
+        return token;
+    }
+    public String getToken(User user){
         HashMap<String,Object> claim=new HashMap<>();
         claim.put(RedisConstants.CLAIM_USER_ID,user.getId());
         String token = JwtUtil.createJWT(jwtProperties.getUserSecretkey(), jwtProperties.getUserTtl(), claim);
 //        redisTemplate.opsForValue().set("login_token:key:"+user.getId(),token);
-       // stringRedisTemplate默认传入String类型
-       // Map<String,Object> map= BeanUtil.beanToMap(user);
+        // stringRedisTemplate默认传入String类型
+        // Map<String,Object> map= BeanUtil.beanToMap(user);
         //只存nickname id,就行
         Map<String,String> map=new HashMap<>();
         map.put("id",user.getId().toString());
         map.put("nickname",user.getNickname());
+        map.put("phone",user.getPhone());
         redisTemplate.opsForHash().putAll(RedisConstants.LOGIN_USER+token,map);
         redisTemplate.expire(RedisConstants.LOGIN_USER+token,RedisConstants.LOGIN_TOKEN_TTL,TimeUnit.MINUTES);
         return token;
+    }
 
-    }
-    public User createUser(String phone){
-        User user=new User();
-        user.setPhone(phone);
-        user.setNickname(RedisConstants.USER_NICK_NAME+RandomUtil.randomString(10));
-        user.setAvatar(DEFAULT_AVATAR);
-        save(user);
-        return user;
-    }
     public void logout(String token){
         String userKey=RedisConstants.LOGIN_USER+token;
         redisTemplate.delete(userKey);
