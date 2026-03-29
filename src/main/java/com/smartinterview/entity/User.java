@@ -31,6 +31,8 @@ public class User {
 
     private String nickname;
 
+    private Integer role;
+
     private String avatar;
 
     private String openid;

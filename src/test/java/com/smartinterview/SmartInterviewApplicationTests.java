@@ -1,13 +1,16 @@
 package com.smartinterview;
 
+import cn.hutool.core.util.StrUtil;
 import cn.hutool.json.JSON;
 import cn.hutool.json.JSONUtil;
 import com.alibaba.dashscope.common.Message;
 import com.alibaba.dashscope.common.Role;
 import com.smartinterview.common.exception.BaseException;
 import com.smartinterview.entity.InterviewSession;
+import com.smartinterview.entity.QuestionVector;
 import com.smartinterview.service.InterviewSessionService;
 import com.smartinterview.service.impl.InterviewSessionServiceImpl;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
 import org.junit.jupiter.api.Test;
@@ -22,6 +25,7 @@ import java.io.IOException;
 import java.time.LocalDateTime;
 
 @SpringBootTest
+@Slf4j
 class SmartInterviewApplicationTests {
     @Autowired
     private StringRedisTemplate stringRedisTemplate;
@@ -84,7 +88,6 @@ class SmartInterviewApplicationTests {
     public void testDTO(){
         InterviewSession interviewSession=InterviewSession.builder().
                 userId(2L).
-                category("java后端开发").
                 difficulty("无").
                 createTime(LocalDateTime.now()).build();
         interviewSessionService.save(interviewSession);
@@ -108,5 +111,6 @@ class SmartInterviewApplicationTests {
         Message msg=JSONUtil.toBean(userMsg1,Message.class,false);
         System.out.println("userMsg1:"+msg.getContent());
     }
+
 
 }

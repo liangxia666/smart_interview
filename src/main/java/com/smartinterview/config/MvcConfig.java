@@ -1,4 +1,5 @@
 package com.smartinterview.config;
+import com.smartinterview.interceptor.AdminInterceptor;
 import com.smartinterview.interceptor.LoginInterceptor;
 import com.smartinterview.interceptor.RefreshInterceptor;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,6 +18,8 @@ public class MvcConfig implements WebMvcConfigurer {
 
     @Autowired
     private LoginInterceptor loginInterceptor;
+    @Autowired
+    private AdminInterceptor adminInterceptor;
 
     // 统一定义需要放行的接口文档路径
     private static final String[] SWAGGER_EXCLUDE_PATHS = {
@@ -41,11 +44,17 @@ public class MvcConfig implements WebMvcConfigurer {
                 .addPathPatterns("/**") // 明确指定拦截所有，再排除
                 .excludePathPatterns(
                         // 用户相关接口
-                        "/user/login",
-                        "/user/code"
+                        "/user/code/login",
+                        "/user/code",
+                        "/user/password/login",
+                        "user/register"
                 )
                 .excludePathPatterns(SWAGGER_EXCLUDE_PATHS) // 追加放行文档路径
                 .order(1);
+        registry.addInterceptor(adminInterceptor)
+                .addPathPatterns("/**")
+                .excludePathPatterns(SWAGGER_EXCLUDE_PATHS)
+                .order(2);
     }
 
     @Override

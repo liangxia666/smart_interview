@@ -8,6 +8,7 @@ import com.alibaba.dashscope.common.Message;
 
 import com.alibaba.dashscope.common.Role;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.smartinterview.common.constants.RedisConstants;
 import com.smartinterview.common.exception.InterviewSessionException;
@@ -148,10 +149,8 @@ public class InterviewSessionServiceImpl extends ServiceImpl<InterviewSessionMap
         }
         //lambda表达式里变量必须是final或为被修改过的
        final  String aiQuestion=lastAiQuestion;
-        //将AI的问题跟用户的回答拼接在一起作为检索的依据
-        String searchQuery=lastAiQuestion+" "+userMessage;
-       //获取标准答案
-        String standerAnswer=sysQuestionService.searchStanderAnswer(searchQuery);
+       //根据计算余弦值获取标准答案 小于0.75返回null
+        String standerAnswer = sysQuestionService.searchStanderAnswer(lastAiQuestion);
         if(standerAnswer!=null){
             log.info("RAG命中标准答案：{}",standerAnswer);
         }else{
@@ -313,6 +312,14 @@ public class InterviewSessionServiceImpl extends ServiceImpl<InterviewSessionMap
             throw new InterviewSessionException("找不到该面试记录");
         }
         removeById(sessionId);
+        //删除相关的面试报告
+        interviewReportService.lambdaUpdate()
+                .eq(InterviewReport::getSessionId, sessionId)
+                .remove(); // 如果 InterviewReport 实体类配了逻辑删除注解，这里就是逻辑删除
+        //删除聊天记录
+        LambdaUpdateWrapper<ChatMessage> wrapper=new LambdaUpdateWrapper<>();
+        wrapper.eq(ChatMessage::getSessionId,sessionId);
+        chatMessageMapper.delete(wrapper);
     }
     public InterviewStatsVO getInterviewStats(){
         Long userId=UserHolder.getUser().getId();

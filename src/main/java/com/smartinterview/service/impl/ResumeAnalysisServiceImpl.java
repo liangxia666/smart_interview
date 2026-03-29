@@ -66,7 +66,7 @@ public class ResumeAnalysisServiceImpl extends ServiceImpl<ResumeAnalysisMapper,
     private ResumeAnalysisService self;
 
 
-    public ResumeUploadVO upload(MultipartFile file, String intention)  {
+    public ResumeUploadVO upload(MultipartFile file)  {
         if(!file.getOriginalFilename().toLowerCase().endsWith(".pdf")){
             throw new ResumeUploadException("目前仅支持pdf格式的文件上传");
         }

@@ -122,7 +122,7 @@ public class AiAnalysisServiceImpl implements AiAnalysisService {
                     .messages(messages)
                     .resultFormat(GenerationParam.ResultFormat.MESSAGE)
                     .incrementalOutput(true)
-                    .model("qwen-turbo")
+                    .model("qwen-plus")
                     .build();
             log.info("开启多轮对话SSE流生成中....");
             return gen.streamCall(param);
@@ -145,7 +145,7 @@ public class AiAnalysisServiceImpl implements AiAnalysisService {
             String prompt=promptManager.buildEvaluationPrompt(aiQuestion,userAnswer,standardAnswer);
             Message userMsg=Message.builder().role(Role.USER.getValue()).content(prompt).build();
             GenerationParam param=GenerationParam.builder()
-                    .model("qwen-turbo")
+                    .model("qwen-plus")
                     .messages(Arrays.asList(userMsg))
                     .resultFormat(GenerationParam.ResultFormat.MESSAGE)
                     .apiKey(apiKey)

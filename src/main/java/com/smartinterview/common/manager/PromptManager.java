@@ -72,18 +72,9 @@ public class PromptManager {
         String resumeSummary = summaryText != null ? summaryText : "暂无简历画像";
 
         //查到标准答案就组装，没查到就留空
-        String ragPrompt= StrUtil.isNotBlank(ragContext)
-                ? "\n【标准参考答案】：\n" + ragContext
-                : "";
-        String difficultyPrompt = StrUtil.isNotBlank(difficulty)
-                ? "\n【本次面试难度】：" + difficulty +
-                "，提问深度、术语复杂度和追问力度必须严格匹配该级别。"
-                : "";
-       String intentionPrompt = StrUtil.isNotBlank(jobIntention)
-                ? "\n【候选人求职意向】：" + jobIntention +
-                "，你的提问方向和深度必须严格匹配该岗位的技术要求，" +
-                "不相关的技术领域不要涉及。"
-                : "";
+        String ragPrompt= StrUtil.isNotBlank(ragContext) ?ragContext : "无标准答案，请依据业界最佳实践评判";
+        String difficultyPrompt = StrUtil.isNotBlank(difficulty) ? difficulty + "，提问深度、术语复杂度和追问力度必须严格匹配该级别。": "";
+       String intentionPrompt = StrUtil.isNotBlank(jobIntention) ?  jobIntention : "";
 
 
         return interviewChatTemplate

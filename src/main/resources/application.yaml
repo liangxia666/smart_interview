@@ -67,3 +67,5 @@ knife4j:
 aliyun:
   dashscope:
     api-key: sk-790988950ca84b829c733011c04434b5
+    embedding-url: https://dashscope.aliyuncs.com/api/v1/services/embeddings/text-embedding/text-embedding
+    model: text-embedding-v3

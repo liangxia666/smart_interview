@@ -33,8 +33,5 @@ public class InterviewReportController {
     public void exportReport(@PathVariable(value="sessionId")Long sessionId, HttpServletResponse response){
         log.info("到处面试报告：{}",sessionId);
         interviewReportService.exportReport(sessionId,response);
-
     }
-
-
 }

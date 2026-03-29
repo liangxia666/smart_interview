@@ -38,11 +38,9 @@ public class ResumeController {
 
     @Operation(summary = "上传简历")
     @PostMapping("upload")
-    public Result uploadResume(@RequestParam("file") MultipartFile file,
-                               @RequestParam(value = "intention", required = false,
-                                       defaultValue = "Java后端开发") String intention) {
+    public Result uploadResume(@RequestParam("file") MultipartFile file) {
         log.info("开始上传简历：{}",file.getOriginalFilename());
-        ResumeUploadVO upload = resumeAnalysisService.upload(file, intention);
+        ResumeUploadVO upload = resumeAnalysisService.upload(file);
         return Result.success(upload);
     }
 

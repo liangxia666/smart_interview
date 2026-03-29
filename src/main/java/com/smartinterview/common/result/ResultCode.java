@@ -13,6 +13,7 @@ public enum ResultCode {
     NOT_FOUND(404, "资源不存在"),
     BUSINESS_ERROR(500, "业务异常"),
     SERVER_ERROR(500, "服务器内部错误"),
+    AUTHORITY_ERROR(403,"无权限，仅管理员可操作"),
     // 秒杀专用
     SECKILL_FAILED(600, "秒杀失败"),
     SECKILL_STOCK_EMPTY(601, "库存不足"),

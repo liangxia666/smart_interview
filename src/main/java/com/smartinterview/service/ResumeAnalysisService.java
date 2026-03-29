@@ -18,7 +18,7 @@ import java.util.List;
 */
 public interface ResumeAnalysisService extends IService<ResumeAnalysis> {
 
-    ResumeUploadVO upload(MultipartFile file, String intention);
+    ResumeUploadVO upload(MultipartFile file);
 
     SseEmitter streamAiAnalysis(Long resumeId);
 

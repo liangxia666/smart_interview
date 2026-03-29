@@ -1,6 +1,7 @@
 package com.smartinterview.interceptor;
 
 import cn.hutool.core.bean.BeanUtil;
+import cn.hutool.core.util.StrUtil;
 import cn.hutool.jwt.JWTUtil;
 import com.smartinterview.common.constants.RedisConstants;
 import com.smartinterview.common.util.JwtProperties;
@@ -24,7 +25,7 @@ import java.util.concurrent.TimeUnit;
 @Component
 public class RefreshInterceptor implements HandlerInterceptor {
     @Autowired
-    private RedisTemplate redisTemplate;
+    private StringRedisTemplate stringRedisTemplate;
     @Autowired
     private JwtProperties jwtProperties;
 
@@ -37,29 +38,34 @@ public class RefreshInterceptor implements HandlerInterceptor {
 
         // 2. 获取 Token（尝试大写和小写，增强兼容性）
         String token = request.getHeader("Authorization");
-        if (token == null) {
+        if (StrUtil.isBlank(token)) {
             token = request.getHeader("authorization");
         }
         //SSE: 2. 如果 Header 没有，尝试从 URL 参数获取 (专门给 SSE 用)
-        if (token == null) {
+        if (StrUtil.isBlank(token)) {
             token = request.getParameter("token");
         }
 
-        if(token==null){
+        if(StrUtil.isBlank(token)){
             return true;
         }
         try {
             JwtUtil.parseJWT(jwtProperties.getUserSecretkey(),token);
-            Map<Object, Object> userMap = redisTemplate.opsForHash().entries(RedisConstants.LOGIN_USER + token);
+            Map<Object, Object> userMap = stringRedisTemplate.opsForHash().entries(RedisConstants.LOGIN_USER + token);
             if(userMap.isEmpty()||userMap.size()==0){
                 return true;
             }
             UserDTO userDTO = BeanUtil.fillBeanWithMap(userMap, new UserDTO(), false);
             UserHolder.save(userDTO);
-            redisTemplate.expire(RedisConstants.LOGIN_USER+token,RedisConstants.LOGIN_TOKEN_TTL, TimeUnit.MINUTES);
+            stringRedisTemplate.expire(RedisConstants.LOGIN_USER+token,RedisConstants.LOGIN_TOKEN_TTL, TimeUnit.MINUTES);
         } catch (Exception e) {
             log.error("jwt解析失败：{}",e.getMessage());
         }
         return true;
+    }
+
+    @Override
+    public void afterCompletion(HttpServletRequest request, HttpServletResponse response, Object handler, Exception ex) throws Exception {
+        UserHolder.remove();
     }
 }

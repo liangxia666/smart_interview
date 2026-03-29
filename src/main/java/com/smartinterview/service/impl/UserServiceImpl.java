@@ -79,19 +79,17 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
     }
     public void register(RegisterDTO dto){
         String phone=dto.getPhone();
+        if(RegexUtils.isPhoneInvalid(phone)){
+            throw new PhoneException("手机号格式错误");
+        }
         Object o= redisTemplate.opsForValue().get(RedisConstants.LOGIN_CODE_KEY+phone);
         if(o==null){
             throw new CodeException("验证码已过期");
-        }
-
-        if(RegexUtils.isPhoneInvalid(phone)){
-            throw new PhoneException("手机号格式错误");
         }
         User user = query().eq("phone", phone).one();
         if(user!=null){
             throw new RegisterException("账号已经存在");
         }
-
         String code = String.valueOf(o);
         if(!code.equals(dto.getCode())){
             throw new CodeException("验证码错误");
@@ -114,7 +112,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
     public String codeLogin(CodeLoginDTO codeLoginDTO) {
         String phone= codeLoginDTO.getPhone();
         if(RegexUtils.isPhoneInvalid(phone)){
-          throw new PhoneException("手机号格式错误");
+            throw new PhoneException("手机号格式错误");
         }
         User user=query().eq("phone", codeLoginDTO.getPhone()).one();
         if(user==null){
@@ -164,8 +162,9 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
         map.put("id",user.getId().toString());
         map.put("nickname",user.getNickname());
         map.put("phone",user.getPhone());
-        redisTemplate.opsForHash().putAll(RedisConstants.LOGIN_USER+token,map);
-        redisTemplate.expire(RedisConstants.LOGIN_USER+token,RedisConstants.LOGIN_TOKEN_TTL,TimeUnit.MINUTES);
+        map.put("role",user.getRole().toString());
+        stringRedisTemplate.opsForHash().putAll(RedisConstants.LOGIN_USER+token,map);
+        stringRedisTemplate.expire(RedisConstants.LOGIN_USER+token,RedisConstants.LOGIN_TOKEN_TTL,TimeUnit.MINUTES);
         return token;
     }
 
@@ -196,12 +195,13 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
 
     @Override
     public UserVO queryUser() {
-        UserDTO userDTO=UserHolder.getUser();
+        Long userId=UserHolder.getUser().getId();
+        User user= getById(userId);
         UserVO userVO= UserVO.builder()
-                .id(userDTO.getId())
-                .avatar(userDTO.getAvatar())
-                .nickName(userDTO.getNickname())  //\\d{3}查到3个数字 ，（）用$1替换
-                .phone(userDTO.getPhone().replaceAll("(\\d{3})\\d{4}(\\d{4})", "$1****$2"))
+                .id(user.getId())
+                .avatar(user.getAvatar())
+                .nickname(user.getNickname())  //\\d{3}查到3个数字 ，（）用$1替换
+                .phone(user.getPhone().replaceAll("(\\d{3})\\d{4}(\\d{4})", "$1****$2"))
                 .build();
         return userVO;
     }
@@ -210,14 +210,24 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
     public void updateUser(UpdateUserDTO userDTO, HttpServletRequest request) {
         String token = request.getHeader("Authorization");
         Long userId= UserHolder.getUser().getId();
-        User user=new User();
-        user.setId(userId);
-        user.setNickname(userDTO.getNickname());
-        user.setAvatar(userDTO.getAvatar());
-        updateById(user);
-        //更新redis
-        String redisKey=RedisConstants.LOGIN_USER+token;
-        stringRedisTemplate.opsForHash().put(redisKey,"nickname",userDTO.getNickname());
+        boolean success=lambdaUpdate()
+                .set(StrUtil.isNotBlank(userDTO.getNickname()),User::getNickname,userDTO.getNickname())
+                .set(StrUtil.isNotBlank(userDTO.getAvatar()),User::getAvatar,userDTO.getAvatar())
+                .eq(User::getId,userId)
+                .update();
+
+        if(success){
+            //更新redis
+            String redisKey=RedisConstants.LOGIN_USER+token;
+            if(StrUtil.isNotBlank(userDTO.getNickname())){
+                stringRedisTemplate.opsForHash().put(redisKey,"nickname",userDTO.getNickname());
+            }
+            if(StrUtil.isNotBlank(userDTO.getAvatar())){
+                stringRedisTemplate.opsForHash().put(redisKey,"avatar",userDTO.getAvatar());
+            }
+
+        }
+
 
     }
 }
