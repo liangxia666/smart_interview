@@ -113,13 +113,13 @@ public class InterviewReportServiceImpl extends ServiceImpl<InterviewReportMappe
         if(session==null){
             throw new InterviewSessionException("面试记录不存在");
         }
-        if(!session.getStatus().equals(Integer.valueOf(2))){
+        if(session.getStatus()<2){
             throw new InterviewSessionException("面试未开始或还未完成，请先完成面试");
         }
         //获取报告内容
         LambdaQueryWrapper<InterviewReport> wrapper=new LambdaQueryWrapper<>();
         wrapper.eq(InterviewReport::getSessionId,sessionId)
-                .ne(InterviewReport::getQuestionText, "") //过滤掉第一条问题记录 where 字段不为空
+                .ne(InterviewReport::getQuestionText, "") //过滤掉第一条问题记录 where 字段不为空 也可以skip(1)
                 .orderByAsc(InterviewReport::getId);
         List<InterviewReport> list=list(wrapper);
         InterviewReportVO interviewReportVO=new InterviewReportVO();
@@ -163,12 +163,13 @@ public class InterviewReportServiceImpl extends ServiceImpl<InterviewReportMappe
     }
     public void exportReport(Long sessionId, HttpServletResponse response){
         InterviewSession session=interviewSessionMapper.selectById(sessionId);
-        if(session==null||!session.getStatus().equals(Integer.valueOf(2))){
+        if(session==null||session.getStatus()<2){
             throw new InterviewSessionException("面试不存在或未完成");
         }
         // 1. 查报告数据
         List<InterviewReport> list = lambdaQuery()
                 .eq(InterviewReport::getSessionId, sessionId)
+                .ne(InterviewReport::getQuestionText,"")
                 .orderByAsc(InterviewReport::getId)
                 .list();
 

@@ -11,14 +11,19 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 
+import com.smartinterview.common.constants.RabbitConstants;
+import com.smartinterview.common.exception.ResumeAnalysisException;
 import com.smartinterview.common.exception.ResumeNotFindException;
 import com.smartinterview.common.exception.ResumeUploadException;
+import com.smartinterview.common.manager.ResumeStateManager;
 import com.smartinterview.common.result.PageResult;
 import com.smartinterview.common.util.AliOssUtil;
 import com.smartinterview.common.util.UserHolder;
 import com.smartinterview.config.RabbitConfig;
+import com.smartinterview.entity.ResumeScoreMessage;
 import com.smartinterview.entity.ResumeAnalysis;
 
+import com.smartinterview.entity.ResumeScoreMessage;
 import com.smartinterview.service.AiAnalysisService;
 import com.smartinterview.service.ResumeAnalysisService;
 import com.smartinterview.mapper.ResumeAnalysisMapper;
@@ -61,9 +66,11 @@ public class ResumeAnalysisServiceImpl extends ServiceImpl<ResumeAnalysisMapper,
     private RabbitTemplate rabbitTemplate;
     //创建代理对象时，注入接口的bean,
     // JDK 代理是基于接口造替身，替身只认接口，不认你的实现类！
-    @Lazy //延迟注入，在第一次使用时注入
+//    @Lazy //延迟注入，在第一次使用时注入
+//    @Autowired
+//    private ResumeAnalysisService self;
     @Autowired
-    private ResumeAnalysisService self;
+    private ResumeStateManager resumeStateManager;
 
 
     public ResumeUploadVO upload(MultipartFile file)  {
@@ -86,6 +93,7 @@ public class ResumeAnalysisServiceImpl extends ServiceImpl<ResumeAnalysisMapper,
         Long userId = UserHolder.getUser().getId();
         ResumeAnalysis resumeAnalysis=new ResumeAnalysis();
         resumeAnalysis.setUserId(userId);
+        resumeAnalysis.setName(file.getOriginalFilename());
         resumeAnalysis.setFileUrl(fileUrl);
         resumeAnalysis.setCreateTime(LocalDateTime.now());
         resumeAnalysis.setUpdateTime(LocalDateTime.now());
@@ -93,7 +101,7 @@ public class ResumeAnalysisServiceImpl extends ServiceImpl<ResumeAnalysisMapper,
         save(resumeAnalysis);
         Long resumeId=resumeAnalysis.getId();
         //发送到mq
-        rabbitTemplate.convertAndSend(RabbitConfig.RESUME_PARSE_EXCHANGE,RabbitConfig.RESUME_ROUTING_KEY,resumeId);
+        rabbitTemplate.convertAndSend(RabbitConstants.RESUME_PARSE_EXCHANGE,RabbitConstants.RESUME_PARSE_ROUTING_KEY,resumeId);
 
 
         return new ResumeUploadVO(resumeId);
@@ -109,12 +117,7 @@ public class ResumeAnalysisServiceImpl extends ServiceImpl<ResumeAnalysisMapper,
         SseEmitter emitter=new SseEmitter(60000L);
         ResumeAnalysis resumeAnalysis=getById(resumeId);
         if(resumeAnalysis==null|| StrUtil.isBlank(resumeAnalysis.getOriginalText())){
-            try {
-                emitter.send("简历为空，请稍后重试");
-                emitter.complete();//关闭连接
-            } catch (IOException e) {
-                log.error("SSE发送失败",e);
-            }
+            safeSendAndClose(emitter, "简历为空，请稍后重试");
             return emitter;
         }
         // 缓存原始文本
@@ -140,72 +143,42 @@ public class ResumeAnalysisServiceImpl extends ServiceImpl<ResumeAnalysisMapper,
                 //发生异常时
                 (Throwable err) -> {
                     log.error("简历流式分析异常",err);
-                    try {
-                        emitter.send("生成异常，请重试");
-                        emitter.completeWithError(err);
-                    } catch (Exception ignore) {
-
-                    }
+                    safeSendAndClose(emitter, "生成异常，请重试");
                 },
                 //Ai生成彻底结束时  onComplete 里任何 throw 都会变成 UndeliverableException
                 ()->{
-                        try {
-                            emitter.send("[DONE]");
-                            emitter.complete();
-                            log.info("前台轨完成，resumeId={}，总字数={}", resumeId, fullAiContent.length());
-                        } catch (IOException e) {
-                            log.error("SSE关闭失败", e);
-                            emitter.completeWithError(e);
-                        }
-                    try {
-                        resumeAnalysis.setAiResult(fullAiContent.toString());
-                        resumeAnalysis.setStatus(2);   // 2 = 文本已生成，评分计算中
-                        resumeAnalysis.setUpdateTime(LocalDateTime.now());
-                        updateById(resumeAnalysis);
-                    } catch (Exception e) {
-                        log.error("ai_result存库失败，resumeId={}", resumeId, e);
-                    }
-                    // 触发后台轨异步评分（@Async，立即返回，不阻塞）
-                    //代理对象是基于接口创建的
-                   self.asyncGenerateScore(resumeId, rawText);
+                    safeSendAndComplete(emitter, "[DONE]");
+                    log.info("前台轨完成，resumeId={}，总字数={}", resumeId, fullAiContent.length());
+
+                        //将resume状态改为2
+                        resumeStateManager.updateToTextGenerated(resumeId,fullAiContent.toString());
+                        //创建MQ消息
+                        ResumeScoreMessage mqMessage=ResumeScoreMessage.builder()
+                                        .resumeId(resumeId)
+                                        .rawText(rawText)
+                                        .aiResult(fullAiContent.toString())
+                                        .build();
+                        //发送到消息队列
+                        rabbitTemplate.convertAndSend(RabbitConstants.RESUME_SCORE_EXCHANGE,RabbitConstants.RESUME_SCORE_ROUTING_KEY,mqMessage);
                 }
         );
         return emitter;
     }
 
-    @Async
-    public void asyncGenerateScore(Long resumeId,String rawText){
-        log.info("后台轨启动，resumeId={}",resumeId);
+
+    private void safeSendAndClose(SseEmitter emitter, String msg) {
         try {
-            //同步调用AI,强制输出json
-            String jsonRaw=aiAnalysisService.analyzeResumeScore(rawText);
-            int start=jsonRaw.indexOf("{");
-            int end=jsonRaw.lastIndexOf("}");
-            if (start == -1 || end == -1) {
-                log.error("后台轨JSON格式异常，resumeId={}, raw={}", resumeId, jsonRaw);
-                return;
-            }
-            //解析为json对象
-            JSONObject json=JSONUtil.parseObj(jsonRaw.substring(start,end+1));
-            // 提取各字段
-            String scoreJson = json.getJSONObject("score") != null
-                    ? json.getJSONObject("score").toString() : "{}";
-            //从json串取出summary的字符串值
-            String summary = json.getStr("summary", "暂无摘要");
-            ResumeAnalysis resume = getById(resumeId);
-            resume.setScore(scoreJson);
-            resume.setSummary(summary);
-            resume.setStatus(3);
-            resume.setUpdateTime(LocalDateTime.now());
-            updateById(resume);
-            log.info("后台轨完成，resumeId={}，status已置为3", resumeId);
+            emitter.send(msg);
+            emitter.complete();
+        } catch (Exception ignore) {}
+    }
+
+    private void safeSendAndComplete(SseEmitter emitter, String msg) {
+        try {
+            emitter.send(msg);
+            emitter.complete();
         } catch (Exception e) {
-            log.error("后台轨评分失败，resumeId={}", resumeId, e);
-            //评分生成失败设置状态为-1
-            ResumeAnalysis r=getById(resumeId);
-            r.setStatus(-1);
-            r.setUpdateTime(LocalDateTime.now());
-            updateById(r);
+            emitter.completeWithError(e);
         }
     }
     //前端每两秒查询一个简历状态，status，时打分完成，简历分析成功
@@ -221,6 +194,14 @@ public class ResumeAnalysisServiceImpl extends ServiceImpl<ResumeAnalysisMapper,
             vo.setScore(resume.getScore());
         }
         return vo;
+    }
+    public String queryReport(Long resumeId){
+        ResumeAnalysis resume = getById(resumeId);
+        if(resume.getStatus()<3){
+            throw new ResumeAnalysisException("简历尚未处理完成");
+        }
+        return resume.getAiResult();
+
     }
 
 

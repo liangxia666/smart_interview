@@ -100,7 +100,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
         }
         User u=User.builder()
                 .phone(phone)
-                .nickname(RedisConstants.USER_NICK_NAME+RandomUtil.randomString(10))
+                .nickname("User_"+RedisConstants.USER_NICK_NAME+RandomUtil.randomString(10))
                 .createTime(LocalDateTime.now())
                 .password(password)
                 .avatar(DEFAULT_AVATAR)
@@ -199,6 +199,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
         User user= getById(userId);
         UserVO userVO= UserVO.builder()
                 .id(user.getId())
+                .role(user.getRole())
                 .avatar(user.getAvatar())
                 .nickname(user.getNickname())  //\\d{3}查到3个数字 ，（）用$1替换
                 .phone(user.getPhone().replaceAll("(\\d{3})\\d{4}(\\d{4})", "$1****$2"))

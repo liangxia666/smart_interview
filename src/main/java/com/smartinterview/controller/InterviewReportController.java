@@ -14,24 +14,25 @@ import org.springframework.web.bind.annotation.*;
 
 @Slf4j
 @RestController
-@RequestMapping("interview")
+@RequestMapping("interview/report")
 @Tag(name="面试报告模块")
 public class InterviewReportController {
 
     @Autowired
     private InterviewReportService interviewReportService;
 
-    @Operation(summary="生成面试报告")
-    @PostMapping("report/{sessionId}")
+    @Operation(summary="查看面试报告")
+    @PostMapping("{sessionId}")
     public Result getReport(@PathVariable(value="sessionId") Long sessionId){
-        log.info("生成面试报告：{}",sessionId);
+        log.info("查看面试报告：{}",sessionId);
         InterviewReportVO interviewReportVO = interviewReportService.buildReport(sessionId);
         return Result.success(interviewReportVO);
     }
-    @Operation(summary="导出报告")
-    @GetMapping("/export/{sessionId}")
+    @Operation(summary="导出PDF报告")
+    @GetMapping("export/{sessionId}")
     public void exportReport(@PathVariable(value="sessionId")Long sessionId, HttpServletResponse response){
-        log.info("到处面试报告：{}",sessionId);
+        log.info("导出面试报告：{}",sessionId);
         interviewReportService.exportReport(sessionId,response);
     }
+
 }

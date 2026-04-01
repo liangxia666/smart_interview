@@ -16,6 +16,7 @@ import java.time.LocalDateTime;
 public class ResumeVO {
     @JsonSerialize(using = ToStringSerializer.class)
     private Long id;
+    private String name;
     private String fileUrl;       // 简历文件链接
     private Integer status;       // 解析状态
     private String score;         // AI评分

@@ -1,9 +1,11 @@
 package com.smartinterview.config;
 
-import org.springframework.amqp.core.Binding;
-import org.springframework.amqp.core.BindingBuilder;
-import org.springframework.amqp.core.DirectExchange;
-import org.springframework.amqp.core.Queue;
+import com.rabbitmq.client.ConnectionFactory;
+import com.smartinterview.common.constants.RabbitConstants;
+import org.springframework.amqp.core.*;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
+import org.springframework.amqp.support.converter.MessageConverter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -11,22 +13,41 @@ import org.springframework.context.annotation.Configuration;
 
 @Configuration
 public class RabbitConfig {
-    public static final String RESUME_PARSE_QUEUE="resume_parse_queue";
-    public static final String RESUME_PARSE_EXCHANGE="resume_parse_exchange";
-    public static final String RESUME_ROUTING_KEY="resume_routing_key";
+
+    //配置消息转换器
+    @Bean
+    public  MessageConverter messageRabbitConverter(){
+        return new Jackson2JsonMessageConverter();
+    }
    //开启队列持久化
    @Bean
     public Queue resumeParseQueue(){
-        return new Queue(RESUME_PARSE_QUEUE,true);
+        return new Queue(RabbitConstants.RESUME_PARSE_QUEUE,true);
     }
     //交换机持久化，关闭自动删除
     @Bean
-    public DirectExchange directExchange(){
-       return new DirectExchange(RESUME_PARSE_EXCHANGE,true,false);
+    public DirectExchange directParseExchange(){
+       return new DirectExchange(RabbitConstants.RESUME_PARSE_EXCHANGE,true,false);
     }
     //队列绑定到交换机
     @Bean
-    public Binding binding(Queue resumeParseQueue ,DirectExchange directExchange){
-       return BindingBuilder.bind(resumeParseQueue).to(directExchange).with(RESUME_ROUTING_KEY);
+    public Binding bindingParse(Queue resumeParseQueue ,DirectExchange directParseExchange){
+       return BindingBuilder.bind(resumeParseQueue).to(directParseExchange).with(RabbitConstants.RESUME_PARSE_ROUTING_KEY);
+    }
+    @Bean
+    public Queue resumeScoreQueue(){return new Queue(RabbitConstants.RESUME_SCORE_QUEUE,true);}
+    @Bean
+    public DirectExchange directResumeScoreExchange(){return new DirectExchange(RabbitConstants.RESUME_SCORE_EXCHANGE,true,false);}
+    @Bean
+    public Binding bindingScore(Queue resumeScoreQueue,DirectExchange directResumeScoreExchange){
+        return BindingBuilder.bind(resumeScoreQueue).to(directResumeScoreExchange).with(RabbitConstants.RESUME_SCORE_ROUTING_KEY);
+    }
+    @Bean
+    public Queue interviewScoreQueue(){return new Queue(RabbitConstants.INTERVIEW_SCORE_QUEUE,true);}
+    @Bean
+    public DirectExchange interviewScoreExchange(){return new DirectExchange(RabbitConstants.INTERVIEW_SCORE_EXCHANGE,true,false);}
+    @Bean
+    public Binding bingInterviewScoreExchange(Queue interviewScoreQueue,DirectExchange interviewScoreExchange){
+        return BindingBuilder.bind(interviewScoreQueue).to(interviewScoreExchange).with(RabbitConstants.INTERVIEW_SCORE_ROUTING_KEY);
     }
 }

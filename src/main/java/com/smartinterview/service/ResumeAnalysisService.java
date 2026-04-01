@@ -27,7 +27,9 @@ public interface ResumeAnalysisService extends IService<ResumeAnalysis> {
     void logicalDelete(Long resumeId);
 
     ResumeDetailVO getResumeDetail(Long resumeId);
-    void asyncGenerateScore(Long resumeId,String rawText);
+    //void asyncGenerateScore(Long resumeId,String rawText);
+
+    String queryReport(Long resumeId);
 
 
     // PageResult pageQuery(Integer current, Integer size);

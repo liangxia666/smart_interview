@@ -60,7 +60,7 @@ public class InterviewSessionController {
      * 面试对话（SSE 流式）
      * 每次用户发送消息时调用，AI 以流式方式逐字返回回复
      * <p>
-     * POST /interview/session/chat?sessionId=1001&userMessage=你好
+     * POST /interview/session/chat
      * <p>
      * 响应：text/event-stream
      * 每个 chunk 是 AI 回复的片段，最后一条为 "DONE" 表示本轮结束
@@ -88,10 +88,10 @@ public class InterviewSessionController {
      * 响应示例：
      * { "code": 200, "msg": "success", "data": null }
      */
-    @Operation(summary = "面试结束")
-    @PostMapping("finish") //方法路径加/匹配剧决对路径
-    public Result finishInterview(@RequestParam Long sessionId) {
-        log.info("结束面试:", sessionId);
+    @Operation(summary = "结束面试")
+    @PostMapping("finish/{sessionId}") //方法路径加/匹配剧决对路径
+    public Result finishInterview(@PathVariable Long sessionId) {
+        log.info("结束面试:{}", sessionId);
         interviewSessionService.finishInterview(sessionId);
         return Result.success();
     }

@@ -83,6 +83,13 @@ public class ResumeController {
 //      PageResult pageResult=  resumeAnalysisService.pageQuery(current,size);
 //      return Result.success(pageResult);
 //    }
+    @Operation(summary="查询简历报告")
+    @GetMapping("report/{resumeId}")
+    public Result getResumeReport(@PathVariable Long resumeId){
+      String report=  resumeAnalysisService.queryReport(resumeId);
+      return Result.success(report);
+
+    }
     @Operation(summary="查询简历列表")
     @GetMapping("list")
     public Result queryResume(){

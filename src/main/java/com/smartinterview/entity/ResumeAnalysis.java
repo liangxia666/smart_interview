@@ -20,6 +20,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class ResumeAnalysis {
     private Long id;
+    private String name;
 
     private Long userId;
 

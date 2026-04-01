@@ -14,5 +14,5 @@ import lombok.NoArgsConstructor;
 
 public class InterviewStartVO {
     @JsonSerialize(using = ToStringSerializer.class)
-    Long id;
+    Long sessionId;
 }

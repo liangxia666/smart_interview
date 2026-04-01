@@ -15,6 +15,7 @@ public class UserVO {
     //雪花算法防止前端精度丢失
     @JsonSerialize(using = ToStringSerializer.class)
     private Long id;
+    private Integer role;
     private String nickname;
     private String avatar;
     private String phone;

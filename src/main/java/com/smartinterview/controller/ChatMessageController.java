@@ -22,7 +22,7 @@ public class ChatMessageController {
     @Autowired
     private ChatMessageService chatMessageService;
     @Operation(summary="查询聊天消息")
-    @GetMapping("list")
+    @GetMapping("list/{sessionId}")
     public Result queryChat(@PathVariable Long sessionId){
      List<ChatMessage> list= chatMessageService.queryBySessionId(sessionId);
      return Result.success(list);

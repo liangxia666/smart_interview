@@ -13,6 +13,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
 * @author 32341
@@ -33,7 +34,7 @@ public class ChatMessageServiceImpl extends ServiceImpl<ChatMessageMapper, ChatM
                 .eq(ChatMessage::getSessionId,sessionId)
                 .orderByAsc(ChatMessage::getCreateTime)
                 .list();
-        return list;
+        return list.stream().skip(1).collect(Collectors.toList());
     }
 
 }

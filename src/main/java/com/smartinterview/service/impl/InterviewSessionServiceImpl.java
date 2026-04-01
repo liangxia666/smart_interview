@@ -10,19 +10,18 @@ import com.alibaba.dashscope.common.Role;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.smartinterview.common.constants.RabbitConstants;
 import com.smartinterview.common.constants.RedisConstants;
 import com.smartinterview.common.exception.InterviewSessionException;
 import com.smartinterview.common.exception.ResumeAnalysisException;
 import com.smartinterview.common.exception.ResumeNotFindException;
+import com.smartinterview.common.manager.ChatContextManager;
 import com.smartinterview.common.manager.PromptManager;
 import com.smartinterview.common.result.Result;
 import com.smartinterview.common.util.UserHolder;
 import com.smartinterview.dto.ChatDTO;
 import com.smartinterview.dto.StartInterviewDTO;
-import com.smartinterview.entity.ChatMessage;
-import com.smartinterview.entity.InterviewReport;
-import com.smartinterview.entity.InterviewSession;
-import com.smartinterview.entity.ResumeAnalysis;
+import com.smartinterview.entity.*;
 import com.smartinterview.mapper.ChatMessageMapper;
 import com.smartinterview.service.*;
 import com.smartinterview.mapper.InterviewSessionMapper;
@@ -31,7 +30,9 @@ import com.smartinterview.vo.InterviewStartVO;
 import com.smartinterview.vo.InterviewStatsVO;
 import io.reactivex.Flowable;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -54,20 +55,19 @@ import java.util.stream.Collectors;
 public class InterviewSessionServiceImpl extends ServiceImpl<InterviewSessionMapper, InterviewSession>
     implements InterviewSessionService{
     @Autowired
-    private StringRedisTemplate stringRedisTemplate;
-    @Autowired
     private ChatMessageMapper chatMessageMapper;
     @Autowired
     private AiAnalysisService aianalysisService;
     @Autowired
     private ResumeAnalysisService resumeAnalysisService;
-    @Autowired
-    private PromptManager promptManager;
-    private static final int MAX_HISTORY_MSG=20;
-    @Autowired
-    private SysQuestionService sysQuestionService;
+
     @Autowired
     private InterviewReportService interviewReportService;
+    @Autowired
+    private RabbitTemplate rabbitTemplate;
+    @Lazy
+    @Autowired
+    private ChatContextManager chatContextManager;
 
 
     public InterviewStartVO startInterview(StartInterviewDTO dto){
@@ -113,65 +113,13 @@ public class InterviewSessionServiceImpl extends ServiceImpl<InterviewSessionMap
      */
     @Override
     public SseEmitter chat(ChatDTO dto) {
+        //获取上下文消息  系统提示词++历史会话+当前用户消息
+        ChatContext chatContext = chatContextManager.buildChatContext(dto);
+        List<Message> messages=chatContext.getMessages();
+        //开始SSE
         SseEmitter emitter = new SseEmitter(60000L);
         Long sessionId=dto.getSessionId();
         String userMessage=dto.getUserMessage();
-        //校验session存在，且未结束
-        InterviewSession session=getById(sessionId);
-        if(session==null){
-            sendErrorAndClose(emitter,"面试会话不存在");
-        }
-        if(session.getStatus().equals(Integer.valueOf(2))){
-            sendErrorAndClose(emitter,"面试已结束，请重新上传简历");
-        }
-       String redisKey = RedisConstants.INTERVIEW_CHAT_HISTORY+sessionId;
-       List<Message> messages=new ArrayList();
-
-       //========获取历史消息=========
-        List<Message> historyMessage=new ArrayList<>();
-        //查询当前会话框的历史对话
-        List<String> range = stringRedisTemplate.opsForList().range(redisKey, 0, -1);
-        //在添加到消息中
-        if(range!=null&&!range.isEmpty()){
-            for(String s:range){
-                Message msg= JSONUtil.toBean(s,Message.class,false);
-                historyMessage.add(msg);
-            }
-        }
-       //提取AI上一条问题
-        //集合只声明的话为null
-         String lastAiQuestion="";
-        if(historyMessage!=null&&!historyMessage.isEmpty()){
-            Message lastMsg= historyMessage.get(historyMessage.size()-1);
-            if(Role.ASSISTANT.getValue().equals(lastMsg.getRole())){
-              lastAiQuestion=lastMsg.getContent();
-            }
-        }
-        //lambda表达式里变量必须是final或为被修改过的
-       final  String aiQuestion=lastAiQuestion;
-       //根据计算余弦值获取标准答案 小于0.75返回null
-        String standerAnswer = sysQuestionService.searchStanderAnswer(lastAiQuestion);
-        if(standerAnswer!=null){
-            log.info("RAG命中标准答案：{}",standerAnswer);
-        }else{
-            log.info("RAG未命中，大模型将自由发挥");
-        }
-        //摘要
-        String summaryText=getSummary(sessionId);
-        // 系统提示词
-        String systemPrompt = promptManager.buildInterviewChatSystemPrompt(
-                summaryText,
-                standerAnswer,
-                session.getDifficulty(),
-                session.getJobIntention()
-                );
-        //添加系统提示此消息
-        messages.add(Message.builder().role(Role.SYSTEM.getValue()).content(systemPrompt).build());
-        //添加历史消息
-        messages.addAll(historyMessage);
-        //添加本次用户消息
-        Message currentUserMsg=Message.builder().role(Role.USER.getValue()).content(userMessage).build();
-        messages.add(currentUserMsg);
         //将用户的发言先异步存入mysql
         ChatMessage chatMessage = saveMessage(sessionId, Role.USER.getValue(), userMessage);
         //调用AI开启流式聊天
@@ -181,7 +129,6 @@ public class InterviewSessionServiceImpl extends ServiceImpl<InterviewSessionMap
 
         flowable.subscribe(
                 result -> {
-
                     String chunk=result.getOutput().getChoices().get(0).getMessage().getContent();
                     if(StrUtil.isNotBlank(chunk)){
                         aiResponseBuffer.append(chunk);
@@ -202,29 +149,30 @@ public class InterviewSessionServiceImpl extends ServiceImpl<InterviewSessionMap
                 },
                 ()->{
                     String aiFullResponse=aiResponseBuffer.toString();
+                    //AI上个问题添加到数据库
+                    saveMessage(sessionId,Role.ASSISTANT.getValue(), aiFullResponse);
+                    //创建当前用户消息
+                    Message curUserMsg = Message.builder().role(Role.USER.getValue()).content(dto.getUserMessage()).build();
                     //创建AI消息
                     Message aiMessage=Message.builder().role(Role.ASSISTANT.getValue()).content(aiFullResponse).build();
-                    //一问一答添加到redis
-                    stringRedisTemplate.opsForList().rightPush(redisKey, JSONUtil.toJsonStr(currentUserMsg));
-                    stringRedisTemplate.opsForList().rightPush(redisKey,JSONUtil.toJsonStr(aiMessage));
-                    //滑动窗口裁剪，只保留最近N条数据，防止大模型token爆炸
-                    stringRedisTemplate.opsForList().trim(redisKey,-MAX_HISTORY_MSG,-1);
-                    //刷新过期时间
-                    stringRedisTemplate.expire(redisKey,RedisConstants.INTERVIEW_CHAT_TTL, TimeUnit.MINUTES);
-                    //将AI消息保存到数据库
-                    saveMessage(sessionId,Role.ASSISTANT.getValue(), aiFullResponse);
-                    //异步触发单题评分
-                    interviewReportService.saveQuestionReport(
-                            sessionId,
-                            chatMessage.getId(),
-                            aiQuestion,
-                            userMessage,
-                            standerAnswer);
-                    emitter.send("DONE");
+                    //更新redis，进行滑动窗口裁剪
+                    chatContextManager.updateContext(sessionId,curUserMsg,aiMessage);
+                    // 封装评分消息 DTO
+                    QuestionScoreMessage scoreMsg = QuestionScoreMessage.builder()
+                            .sessionId(sessionId)
+                            .messageId(chatMessage.getId())
+                            .aiQuestion(chatContext.getAiQuestion())
+                            .userAnswer(userMessage)
+                            .standardAnswer(chatContext.getStanderAnswer())
+                            .build();
+                    // 投递到 RabbitMQ
+                    rabbitTemplate.convertAndSend(
+                            RabbitConstants.INTERVIEW_SCORE_EXCHANGE,
+                            RabbitConstants.INTERVIEW_SCORE_ROUTING_KEY,
+                            scoreMsg
+                    );
                     emitter.complete();
-                }
-
-        );
+             });
         return emitter;
     }
 
@@ -244,6 +192,7 @@ public class InterviewSessionServiceImpl extends ServiceImpl<InterviewSessionMap
 
        }
        List<InterviewReport> reportList=interviewReportService.lambdaQuery()
+               .ne(InterviewReport::getQuestionText,"")
                        .eq(InterviewReport::getSessionId,sessionId)
                                .list();
        if(reportList!=null){
@@ -285,7 +234,7 @@ public class InterviewSessionServiceImpl extends ServiceImpl<InterviewSessionMap
         return chatMessage;
     }
     //提取简历摘要
-    private String getSummary(Long sessionId){
+    public String getSummary(Long sessionId){
         InterviewSession session = getById(sessionId);
         if(session==null){
             return "简历找不到，请直接开始技术相关的面试";
@@ -297,14 +246,6 @@ public class InterviewSessionServiceImpl extends ServiceImpl<InterviewSessionMap
         }
         String summary=resumeAnalysis.getSummary();
         return summary;
-    }
-    public void sendErrorAndClose(SseEmitter emitter,String message){
-        try {
-            emitter.send(message);
-            emitter.complete();
-        } catch (IOException e) {
-            emitter.completeWithError(e);
-        }
     }
     public void logicalDelete(Long sessionId){
         InterviewSession interviewSession=getById(sessionId);

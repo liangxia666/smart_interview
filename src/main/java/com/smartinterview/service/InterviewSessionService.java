@@ -29,4 +29,6 @@ public interface InterviewSessionService extends IService<InterviewSession> {
     void logicalDelete(Long sessionId);
 
     InterviewStatsVO getInterviewStats();
+
+    String getSummary(Long sessionId);
 }

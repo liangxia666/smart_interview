@@ -1,5 +1,6 @@
 package com.smartinterview.controller;
 
+import com.smartinterview.annocation.AdminRequired;
 import com.smartinterview.common.result.Result;
 import com.smartinterview.service.impl.SysQuestionServiceImpl;
 import io.swagger.v3.oas.annotations.Operation;
@@ -40,8 +41,9 @@ public class SysQuestionController {
      * 实现思路：导入题目时 → 调通义千问 Embedding API → 得到向量 → 存 MySQL(JSON)
      * 查询时     → 查询文本转向量 → 从 MySQL 取所有向量 → Java 计算余弦相似度 → 返回最相似题目
      */
+    @AdminRequired
     @Operation(summary = "导入题库 Excel")
-    @PostMapping("/import")
+    @PostMapping("/import/{file}")
     public Result importQuestion(@RequestParam("file") MultipartFile file) {
         if (file.isEmpty()) {
             return Result.error("文件不能为空");
@@ -56,7 +58,7 @@ public class SysQuestionController {
             // 导入完成后异步为新题目生成向量
             sysQuestionServiceImpl.batchGenerateEmbedding();
 
-            return Result.success("题库导入成功，正在后台生成向量索引...");
+            return Result.success("导入成功，正在后台生成向量索引，请等待约1分钟");
         } catch (Exception e) {
             log.error("题库导入失败", e);
             return Result.error("题库导入失败：" + e.getMessage());
